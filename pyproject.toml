@@ -1,0 +1,27 @@
+[project]
+name = "tokeye"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel",
+    "ipywidgets",
+
+    "numpy",
+    "matplotlib",
+
+    "pywavelets",
+    
+    "torch",
+    "torchvision",
+    "torchcodec",
+
+    "gradio",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+gradio = { git = "https://github.com/gradio-app/gradio.git" }
