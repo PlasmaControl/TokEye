@@ -12,7 +12,9 @@ dependencies = [
     "matplotlib",
 
     "pywavelets",
-    
+    "scipy",
+    "opencv-python",
+
     "torch",
     "torchvision",
     "torchcodec",
@@ -22,6 +24,3 @@ dependencies = [
 
 [tool.uv]
 package = true
-
-[tool.uv.sources]
-gradio = { git = "https://github.com/gradio-app/gradio.git" }
