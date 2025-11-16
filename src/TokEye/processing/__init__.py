@@ -8,7 +8,7 @@ for the TokEye plasma disruption detection system.
 from .transforms import apply_preemphasis, compute_stft, compute_wavelet
 from .tiling import tile_spectrogram, stitch_predictions
 from .inference import load_model, batch_inference
-from .postprocess import apply_threshold, remove_small_objects, create_overlay
+from .postprocess import apply_threshold, remove_small_objects, create_overlay, compute_channel_threshold_bounds
 from .cache import generate_cache_key, CacheManager
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "apply_threshold",
     "remove_small_objects",
     "create_overlay",
+    "compute_channel_threshold_bounds",
     # Caching
     "generate_cache_key",
     "CacheManager",

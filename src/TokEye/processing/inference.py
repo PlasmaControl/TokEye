@@ -152,6 +152,12 @@ def batch_inference(
     if not tiles:
         raise ValueError("Tiles list cannot be empty")
 
+    # Debug: Print first few tile shapes
+    print(f"DEBUG batch_inference: Received {len(tiles)} tiles")
+    print(f"DEBUG batch_inference: First tile shape: {tiles[0].shape}")
+    if len(tiles) > 1:
+        print(f"DEBUG batch_inference: Second tile shape: {tiles[1].shape}")
+
     # Validate tile shapes are consistent
     first_shape = tiles[0].shape
     for i, tile in enumerate(tiles):
@@ -174,6 +180,9 @@ def batch_inference(
 
     num_tiles = len(tiles)
     predictions = []
+
+    # Flag to track if we need to fall back to batch_size=1
+    use_single_batch = False
 
     # Disable gradient computation for inference
     with torch.no_grad():
@@ -200,8 +209,23 @@ def batch_inference(
             # Run inference
             try:
                 batch_predictions = model(batch_tensor)
-            except Exception as e:
-                raise RuntimeError(f"Model inference failed: {e}")
+            except RuntimeError as e:
+                # Check if this is a batch size guard error
+                if "Guard failed" in str(e) and "size()[0]" in str(e) and not use_single_batch:
+                    # Model requires batch_size=1, fall back to single-tile processing
+                    warnings.warn(
+                        f"Model has batch size constraint. Falling back to batch_size=1. "
+                        f"Original error: {e}",
+                        RuntimeWarning
+                    )
+                    use_single_batch = True
+                    # Reprocess all tiles with batch_size=1
+                    return batch_inference(
+                        model, tiles, batch_size=1, device=str(device),
+                        show_progress=show_progress, dtype=dtype
+                    )
+                else:
+                    raise RuntimeError(f"Model inference failed: {e}")
 
             # Convert predictions back to numpy
             try:

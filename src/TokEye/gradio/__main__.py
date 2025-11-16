@@ -47,13 +47,59 @@ def create_app() -> gr.Blocks:
     # Check for logo
     has_logo, logo_path = check_logo()
 
+    # Create pastel cyan beachy theme
+    beachy_theme = gr.themes.Soft(
+        primary_hue="cyan",
+        secondary_hue="teal",
+        neutral_hue="slate",
+        font=gr.themes.GoogleFont("Inter"),
+    ).set(
+        # Primary colors - pastel cyan/turquoise
+        button_primary_background_fill="*primary_300",
+        button_primary_background_fill_hover="*primary_400",
+        button_primary_text_color="white",
+        # Secondary colors - lighter pastels
+        button_secondary_background_fill="*secondary_200",
+        button_secondary_background_fill_hover="*secondary_300",
+        # Backgrounds - very light cyan/beach tones
+        background_fill_primary="#f0f9ff",
+        background_fill_secondary="#e0f2fe",
+        # Borders - soft cyan
+        border_color_primary="*primary_200",
+        # Sliders and inputs
+        slider_color="*primary_400",
+        input_background_fill="#ffffff",
+        # Shadows for depth
+        shadow_drop="0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        shadow_drop_lg="0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+    )
+
     # Create main application
     with gr.Blocks(
         title="TokEye - Plasma Signal Segmentation",
-        theme=gr.themes.Soft(),
+        theme=beachy_theme,
         css="""
         footer {display: none !important}
         .gradio-container {max-width: 100% !important}
+        /* Additional beachy styling */
+        .gradio-accordion {
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0, 150, 150, 0.1) !important;
+        }
+        .gradio-button {
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+        }
+        .gradio-button:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(0, 150, 150, 0.2) !important;
+        }
+        h1, h2, h3 {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
         """
     ) as app:
 

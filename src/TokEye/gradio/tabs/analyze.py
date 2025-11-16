@@ -9,7 +9,7 @@ import gradio as gr
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, Literal
 import io
 from PIL import Image
 
@@ -27,6 +27,7 @@ from TokEye.processing import (
     create_overlay,
     generate_cache_key,
     CacheManager,
+    compute_channel_threshold_bounds,
 )
 
 # Initialize global cache manager
@@ -345,14 +346,20 @@ def run_inference(
 
         progress(0.2, desc="Tiling spectrogram...")
 
+        # Debug: print spectrogram shape
+        print(f"DEBUG: Input spectrogram shape: {spectrogram.shape}, ndim: {spectrogram.ndim}")
+
         # Add channel dimension if needed (C, H, W)
         if spectrogram.ndim == 2:
             spec_with_channels = spectrogram[np.newaxis, :, :]  # Add channel dim
+            print(f"DEBUG: Added channel dim, new shape: {spec_with_channels.shape}")
         else:
             spec_with_channels = spectrogram
+            print(f"DEBUG: Spectrogram already has channels, shape: {spec_with_channels.shape}")
 
         # Tile spectrogram
         tiles, metadata = tile_spectrogram(spec_with_channels, tile_size=tile_size)
+        print(f"DEBUG: Created {len(tiles)} tiles, first tile shape: {tiles[0].shape}")
 
         progress(0.4, desc=f"Running inference on {len(tiles)} tiles...")
 
@@ -366,12 +373,24 @@ def run_inference(
 
         progress(0.8, desc="Stitching predictions...")
 
+        # Update metadata to reflect actual prediction channels
+        # (model may output different number of channels than input)
+        if len(predictions_tiles) > 0:
+            pred_shape = predictions_tiles[0].shape
+            if len(pred_shape) == 3:  # (C, H, W)
+                metadata['num_channels'] = pred_shape[0]
+                metadata['has_channels'] = True
+                print(f"DEBUG: Updated metadata for {pred_shape[0]}-channel predictions")
+            elif len(pred_shape) == 2:  # (H, W)
+                metadata['num_channels'] = None
+                metadata['has_channels'] = False
+                print(f"DEBUG: Predictions are 2D (no channel dimension)")
+
         # Stitch predictions back together
         predictions_full = stitch_predictions(predictions_tiles, metadata, blend_overlap=True)
 
-        # Remove channel dimension if it was added
-        if predictions_full.ndim == 3 and predictions_full.shape[0] == 1:
-            predictions_full = predictions_full[0]
+        # Keep multi-channel predictions for per-channel thresholding
+        # No longer combine channels here - will be handled in visualization
 
         # Save to cache
         cache_manager.save(cache_key, predictions_full, 'inference')
@@ -379,7 +398,21 @@ def run_inference(
         progress(1.0, desc="Complete!")
 
         # Generate output text
-        output_text = f"""
+        if predictions_full.ndim == 3:
+            num_channels = predictions_full.shape[0]
+            channel_info = "\n".join([
+                f"  Channel {i}: min={predictions_full[i].min():.4f}, max={predictions_full[i].max():.4f}, mean={predictions_full[i].mean():.4f}"
+                for i in range(num_channels)
+            ])
+            output_text = f"""
+**Inference Results:**
+- Model: {Path(model_path).name}
+- Tiles processed: {len(tiles)}
+- Prediction shape: {predictions_full.shape} ({num_channels} channels)
+{channel_info}
+"""
+        else:
+            output_text = f"""
 **Inference Results:**
 - Model: {Path(model_path).name}
 - Tiles processed: {len(tiles)}
@@ -402,16 +435,56 @@ def run_inference(
 # Section 4: Visualization
 # ============================================================================
 
+def compute_threshold_bounds(
+    predictions: Optional[np.ndarray],
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Compute threshold bounds for each channel in predictions.
+
+    Returns:
+        (info_text, threshold_bounds_dict)
+    """
+    if predictions is None:
+        return "No predictions available", {}
+
+    try:
+        # Handle multi-channel predictions
+        if predictions.ndim == 3:
+            num_channels = predictions.shape[0]
+            bounds = {}
+            info_lines = [f"**Threshold Bounds (computed for {num_channels} channels):**"]
+
+            for i in range(num_channels):
+                lower, upper = compute_channel_threshold_bounds(predictions[i])
+                bounds[f'ch{i}'] = {'lower': lower, 'upper': upper}
+                info_lines.append(f"- Channel {i}: lower={lower:.3f}, upper={upper:.3f}")
+
+            info_text = "\n".join(info_lines)
+        else:
+            # Single channel
+            lower, upper = compute_channel_threshold_bounds(predictions)
+            bounds = {'ch0': {'lower': lower, 'upper': upper}}
+            info_text = f"**Threshold Bounds:**\n- Lower: {lower:.3f}\n- Upper: {upper:.3f}"
+
+        return info_text, bounds
+
+    except Exception as e:
+        return f"Error computing bounds: {str(e)}", {}
+
+
 def generate_visualization(
     spectrogram: Optional[np.ndarray],
     predictions: Optional[np.ndarray],
-    threshold: float,
+    ch0_lower: float,
+    ch0_upper: float,
+    ch1_lower: float,
+    ch1_upper: float,
     min_obj_size: int,
     overlay_mode: str,
     overlay_alpha: float,
 ) -> Tuple[Optional[Image.Image], str]:
     """
-    Generate final visualization with overlay.
+    Generate final visualization with per-channel threshold overlay.
 
     Returns:
         (overlay_image, statistics_text)
@@ -420,8 +493,39 @@ def generate_visualization(
         return None, "No data available for visualization"
 
     try:
-        # Apply threshold
-        binary_mask = apply_threshold(predictions, threshold=threshold, binary=True)
+        import cv2
+
+        # Handle multi-channel predictions
+        num_channels = 1
+        channel_masks = []
+
+        if predictions.ndim == 3:
+            num_channels = predictions.shape[0]
+
+            # Apply thresholds to each channel
+            for i in range(num_channels):
+                if i == 0:
+                    # Channel 0: use pixels between lower and upper threshold
+                    mask = (predictions[i] >= ch0_lower) & (predictions[i] <= ch0_upper)
+                elif i == 1:
+                    # Channel 1: use pixels between lower and upper threshold
+                    mask = (predictions[i] >= ch1_lower) & (predictions[i] <= ch1_upper)
+                else:
+                    # Additional channels: use 0.5 threshold
+                    mask = predictions[i] >= 0.5
+
+                channel_masks.append(mask.astype(np.uint8))
+
+            # Combine masks with logical OR
+            if num_channels == 1:
+                binary_mask = channel_masks[0]
+            else:
+                binary_mask = np.logical_or.reduce(channel_masks).astype(np.uint8)
+        else:
+            # Single channel prediction
+            binary_mask = (predictions >= ch0_lower) & (predictions <= ch0_upper)
+            binary_mask = binary_mask.astype(np.uint8)
+            channel_masks = [binary_mask]
 
         # Remove small objects
         cleaned_mask, num_objects = remove_small_objects(
@@ -431,48 +535,87 @@ def generate_visualization(
         )
 
         # Create overlay
-        mode_map = {
-            'White': 'white',
-            'Bicolor': 'bicolor',
-            'HSV': 'hsv',
-        }
+        # Map UI mode to function mode
+        if overlay_mode == 'White':
+            mode: Literal['white', 'bicolor', 'hsv'] = 'white'
+        elif overlay_mode == 'Bicolor':
+            mode = 'bicolor'
+        else:
+            mode = 'hsv'
+
+        # For visualization, we need 2D spectrogram
+        if spectrogram.ndim == 3:
+            # If spectrogram has channels, use first channel
+            spec_2d = spectrogram[0]
+        else:
+            spec_2d = spectrogram
 
         overlay_rgb = create_overlay(
-            spectrogram,
+            spec_2d,
             cleaned_mask,
-            mode=mode_map[overlay_mode],
+            mode=mode,
             alpha=overlay_alpha,
         )
 
-        # Convert to PIL Image
+        # Convert to PIL Image and resize for better aspect ratio display
         overlay_img = Image.fromarray(overlay_rgb)
+
+        # Calculate better display size to match Section 2 aspect ratio
+        # Keep reasonable dimensions that aren't too wide
+        height, width = overlay_rgb.shape[:2]
+        aspect_ratio = width / height
+
+        # Target a max width of ~1200 pixels for display
+        if aspect_ratio > 2.0:  # Very wide image
+            display_width = 1200
+            display_height = int(display_width / aspect_ratio)
+        else:
+            # Use a reasonable size based on height
+            display_height = 600
+            display_width = int(display_height * aspect_ratio)
+
+        overlay_img = overlay_img.resize((display_width, display_height), Image.Resampling.LANCZOS)
 
         # Compute statistics
         total_pixels = cleaned_mask.size
         detected_pixels = np.count_nonzero(cleaned_mask)
         coverage = detected_pixels / total_pixels * 100
 
-        # Simple heuristic to estimate coherent vs transient
-        # (This would need proper classification in production)
-        if num_objects > 0:
-            import cv2
-            mask_uint8 = (cleaned_mask > 0).astype(np.uint8) * 255
-            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_uint8, connectivity=8)
+        # Compute per-channel statistics if multi-channel
+        if predictions.ndim == 3 and num_channels == 2:
+            # Count pixels per channel
+            ch0_pixels = np.count_nonzero(channel_masks[0])
+            ch1_pixels = np.count_nonzero(channel_masks[1])
 
-            areas = stats[1:, cv2.CC_STAT_AREA]  # Skip background
-            coherent_count = np.sum(areas > 100)  # Arbitrary threshold
-            transient_count = num_objects - coherent_count
+            stats_text = f"""
+**Detection Statistics:**
+- Total objects detected: {num_objects}
+- Channel 0 pixels: {ch0_pixels:,} ({ch0_pixels/total_pixels*100:.2f}%)
+- Channel 1 pixels: {ch1_pixels:,} ({ch1_pixels/total_pixels*100:.2f}%)
+- Total area coverage: {coverage:.2f}%
+- Thresholds: Ch0=[{ch0_lower:.3f}, {ch0_upper:.3f}], Ch1=[{ch1_lower:.3f}, {ch1_upper:.3f}]
+- Min object size: {min_obj_size} pixels
+"""
         else:
-            coherent_count = 0
-            transient_count = 0
+            # Simple heuristic to estimate coherent vs transient
+            if num_objects > 0:
+                mask_uint8 = (cleaned_mask > 0).astype(np.uint8) * 255
+                _, _, stats_array, _ = cv2.connectedComponentsWithStats(mask_uint8, connectivity=8)
 
-        stats_text = f"""
+                areas = stats_array[1:, cv2.CC_STAT_AREA]  # Skip background
+                coherent_count = np.sum(areas > 100)  # Arbitrary threshold
+                transient_count = num_objects - coherent_count
+            else:
+                coherent_count = 0
+                transient_count = 0
+
+            stats_text = f"""
 **Detection Statistics:**
 - Total objects detected: {num_objects}
 - Estimated coherent structures: {coherent_count}
 - Estimated transient events: {transient_count}
 - Total area coverage: {coverage:.2f}%
-- Threshold used: {threshold}
+- Threshold range: [{ch0_lower:.3f}, {ch0_upper:.3f}]
 - Min object size: {min_obj_size} pixels
 """
 
@@ -527,7 +670,10 @@ def analyze_tab():
         # ====================================================================
         with gr.Accordion("1. Input Signal", open=True):
             with gr.Row():
-                with gr.Column():
+                with gr.Column(scale=1):
+                    pass  # Empty column for centering
+
+                with gr.Column(scale=2):
                     with gr.Row():
                         signal_dropdown = gr.Dropdown(
                             choices=get_available_signals(),
@@ -543,8 +689,11 @@ def analyze_tab():
                     )
                     upload_btn = gr.Button("Load File", variant="primary")
 
-                with gr.Column():
-                    file_info = gr.Markdown("*No file loaded*")
+                with gr.Column(scale=1):
+                    pass  # Empty column for centering
+
+            with gr.Row():
+                file_info = gr.Markdown("*No file loaded*")
 
             signal_plot = gr.Image(
                 label="Signal Visualization",
@@ -676,8 +825,8 @@ def analyze_tab():
             with gr.Row():
                 tile_size_slider = gr.Slider(
                     minimum=64,
-                    maximum=512,
-                    value=256,
+                    maximum=1024,
+                    value=512,
                     step=64,
                     label="Tile Size"
                 )
@@ -702,14 +851,54 @@ def analyze_tab():
         # Section 4: Visualization
         # ====================================================================
         with gr.Accordion("4. Visualization", open=False):
+            # Compute threshold bounds button
+            compute_bounds_btn = gr.Button("Compute Threshold Bounds", variant="secondary")
+            threshold_bounds_info = gr.Textbox(
+                label="Threshold Bounds",
+                lines=4,
+                interactive=False,
+                value="Click 'Compute Threshold Bounds' after inference"
+            )
+
+            # Channel 0 thresholds
+            gr.Markdown("### Channel 0 Thresholds")
             with gr.Row():
-                threshold_slider = gr.Slider(
+                ch0_lower_slider = gr.Slider(
                     minimum=0.0,
                     maximum=1.0,
-                    value=0.5,
-                    step=0.05,
-                    label="Detection Threshold"
+                    value=0.0,
+                    step=0.01,
+                    label="Channel 0 Lower Threshold"
                 )
+                ch0_upper_slider = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=1.0,
+                    step=0.01,
+                    label="Channel 0 Upper Threshold"
+                )
+
+            # Channel 1 thresholds
+            gr.Markdown("### Channel 1 Thresholds")
+            with gr.Row():
+                ch1_lower_slider = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=0.0,
+                    step=0.01,
+                    label="Channel 1 Lower Threshold"
+                )
+                ch1_upper_slider = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=1.0,
+                    step=0.01,
+                    label="Channel 1 Upper Threshold"
+                )
+
+            # Other parameters
+            gr.Markdown("### Post-Processing & Display")
+            with gr.Row():
                 min_size_slider = gr.Slider(
                     minimum=10,
                     maximum=500,
@@ -839,13 +1028,23 @@ def analyze_tab():
             outputs=[predictions_state, inference_output, inference_status]
         )
 
+        # Compute threshold bounds
+        compute_bounds_btn.click(
+            fn=compute_threshold_bounds,
+            inputs=[predictions_state],
+            outputs=[threshold_bounds_info]
+        )
+
         # Generate visualization
         generate_viz_btn.click(
             fn=generate_visualization,
             inputs=[
                 transform_state,
                 predictions_state,
-                threshold_slider,
+                ch0_lower_slider,
+                ch0_upper_slider,
+                ch1_lower_slider,
+                ch1_upper_slider,
                 min_size_slider,
                 overlay_mode_radio,
                 overlay_alpha_slider,

@@ -275,6 +275,78 @@ def create_overlay(
     return result_rgb
 
 
+def compute_channel_threshold_bounds(
+    prediction: np.ndarray,
+    num_steps: int = 100,
+) -> Tuple[float, float]:
+    """
+    Compute lower and upper threshold bounds for a single channel prediction.
+
+    Lower bound: Highest threshold value where applying it results in no pixels (empty mask)
+    Upper bound: Lowest threshold value where applying it covers the full predicted object
+
+    Args:
+        prediction: Single channel prediction array (2D) with values in [0, 1]
+        num_steps: Number of threshold steps to test
+
+    Returns:
+        Tuple of (lower_bound, upper_bound) normalized to [0, 1]
+
+    Example:
+        >>> pred = np.random.rand(256, 256)
+        >>> lower, upper = compute_channel_threshold_bounds(pred)
+        >>> print(f"Threshold range: [{lower:.3f}, {upper:.3f}]")
+    """
+    if prediction.ndim != 2:
+        raise ValueError(f"Prediction must be 2D, got {prediction.ndim}D")
+
+    if prediction.size == 0:
+        return 0.0, 1.0
+
+    # Get the range of values in the prediction
+    pred_min = float(prediction.min())
+    pred_max = float(prediction.max())
+
+    if pred_max - pred_min < 1e-10:
+        # Uniform prediction, return middle value
+        return pred_min, pred_max
+
+    # Test threshold values from min to max
+    thresholds = np.linspace(pred_min, pred_max, num_steps)
+
+    # Find lower bound: highest threshold with no pixels
+    lower_bound = pred_min
+    for thresh in thresholds:
+        mask = prediction >= thresh
+        if np.any(mask):
+            # Found first threshold that produces pixels
+            break
+        lower_bound = thresh
+
+    # Find upper bound: lowest threshold that covers full object
+    # We define "full object" as the pixels that would be detected at minimum threshold
+    full_object_mask = prediction >= pred_min + (pred_max - pred_min) * 0.01  # 1% above minimum
+
+    upper_bound = pred_max
+    for thresh in reversed(thresholds):
+        mask = prediction >= thresh
+        # Check if this threshold covers the full object
+        if np.array_equal(mask, full_object_mask) or np.all(mask[full_object_mask]):
+            upper_bound = thresh
+        else:
+            break
+
+    # Normalize to [0, 1] range
+    if pred_max - pred_min > 1e-10:
+        lower_norm = (lower_bound - pred_min) / (pred_max - pred_min)
+        upper_norm = (upper_bound - pred_min) / (pred_max - pred_min)
+    else:
+        lower_norm = 0.0
+        upper_norm = 1.0
+
+    return lower_norm, upper_norm
+
+
 def compute_statistics(
     mask: np.ndarray,
     min_size: int = 0,
