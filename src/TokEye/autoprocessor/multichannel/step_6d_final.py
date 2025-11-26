@@ -24,7 +24,7 @@ from .utils.configuration import load_settings
 from .utils.augmentations import get_augmentation
 from .utils.losses import get_loss_function, dice_coefficient, iou_score
 
-from autotslabel.models.unet import UNet
+from TokEye.models.unet import UNet
 
 default_settings = {
     # Data and training

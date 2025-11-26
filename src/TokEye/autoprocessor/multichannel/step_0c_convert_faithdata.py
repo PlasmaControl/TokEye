@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 from faith.train.data.datasets.file_based import JoblibDataset
 
-from .utils.configuration import load_settings, load_input_paths, setup_directory
+from .utils.configuration import (
+    load_settings, 
+    load_input_paths, 
+    setup_directory,
+)
 
 default_settings = {
     'subseq_len': 66000,

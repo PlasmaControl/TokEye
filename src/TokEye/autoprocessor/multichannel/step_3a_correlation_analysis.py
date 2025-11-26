@@ -20,9 +20,13 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from autotslabel.models.unet import UNet
+from TokEye.models.unet import UNet
 
-from .utils.configuration import load_settings, load_input_paths, setup_directory
+from .utils.configuration import (
+    load_settings, 
+    load_input_paths, 
+    setup_directory,
+)
 
 default_settings = {
     'adjacent_channels': 3,
