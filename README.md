@@ -23,6 +23,8 @@ Expected processing time:
 - DIII-D Electron Cyclotron Emission (cite)
 - DIII-D Beam Emission Spectroscopy (cite)
 
+With more data, comes better models. Please contribute to the project!
+
 ## Installation
 Installation is meant to be as simple as possible and work across all devices.
 
