@@ -15,7 +15,7 @@ import warnings
 
 def load_model(
     model_path: str,
-    device: str = 'auto',
+    device: str = "auto",
     map_location: Optional[str] = None,
 ) -> Union[nn.Module, torch.export.ExportedProgram]:
     """
@@ -48,35 +48,35 @@ def load_model(
     # Check model type based on extension
     model_suffix = model_path.suffix
     print(f"Detected model file extension: {model_suffix}")
-    if model_suffix not in ['.pt', '.pt2']:
+    if model_suffix not in [".pt", ".pt2"]:
         warnings.warn(
             f"Model file extension is '{model_suffix}', expected '.pt' or '.pt2'. "
             f"Attempting to load anyway.",
-            RuntimeWarning
+            RuntimeWarning,
         )
 
     # Determine device
-    if device == 'auto':
-        target_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if device == "auto":
+        target_device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
         target_device = device
 
     # Validate device
-    if target_device.startswith('cuda'):
+    if target_device.startswith("cuda"):
         if not torch.cuda.is_available():
             warnings.warn(
                 f"CUDA device requested but CUDA is not available. "
                 f"Falling back to CPU.",
-                RuntimeWarning
+                RuntimeWarning,
             )
-            target_device = 'cpu'
-        elif ':' in target_device:
+            target_device = "cpu"
+        elif ":" in target_device:
             # Validate specific CUDA device
-            device_id = int(target_device.split(':')[1])
+            device_id = int(target_device.split(":")[1])
             if device_id >= torch.cuda.device_count():
                 raise ValueError(
                     f"CUDA device {device_id} not available. "
-                    f"Available devices: 0-{torch.cuda.device_count()-1}"
+                    f"Available devices: 0-{torch.cuda.device_count() - 1}"
                 )
 
     # Set map_location if not provided
@@ -85,7 +85,7 @@ def load_model(
 
     # Load model based on type
     try:
-        if model_suffix == '.pt2':
+        if model_suffix == ".pt2":
             # Load torch.export model
             print(f"Loading torch.export model from {model_path}")
             module = torch.export.load(str(model_path))
@@ -110,7 +110,9 @@ def load_model(
         raise RuntimeError(f"Failed to load model: {e}")
 
     # Print device info
-    device_name = torch.cuda.get_device_name(0) if target_device.startswith('cuda') else 'CPU'
+    device_name = (
+        torch.cuda.get_device_name(0) if target_device.startswith("cuda") else "CPU"
+    )
     print(f"Model loaded on {target_device} ({device_name})")
 
     return model
@@ -174,7 +176,7 @@ def batch_inference(
             device = next(model.parameters()).device
         except StopIteration:
             # Model has no parameters, default to CPU
-            device = torch.device('cpu')
+            device = torch.device("cpu")
     else:
         device = torch.device(device)
 
@@ -192,7 +194,9 @@ def batch_inference(
             batch_tiles = tiles[batch_start:batch_end]
 
             if show_progress:
-                print(f"Processing batch {batch_start//batch_size + 1}/{(num_tiles + batch_size - 1)//batch_size}")
+                print(
+                    f"Processing batch {batch_start // batch_size + 1}/{(num_tiles + batch_size - 1) // batch_size}"
+                )
 
             # Stack tiles into batch
             try:
@@ -202,7 +206,9 @@ def batch_inference(
 
             # Convert to torch tensor
             try:
-                batch_tensor = torch.from_numpy(batch_array).to(device=device, dtype=dtype)
+                batch_tensor = torch.from_numpy(batch_array).to(
+                    device=device, dtype=dtype
+                )
             except Exception as e:
                 raise RuntimeError(f"Failed to convert batch to torch tensor: {e}")
 
@@ -211,18 +217,26 @@ def batch_inference(
                 batch_predictions = model(batch_tensor)
             except RuntimeError as e:
                 # Check if this is a batch size guard error
-                if "Guard failed" in str(e) and "size()[0]" in str(e) and not use_single_batch:
+                if (
+                    "Guard failed" in str(e)
+                    and "size()[0]" in str(e)
+                    and not use_single_batch
+                ):
                     # Model requires batch_size=1, fall back to single-tile processing
                     warnings.warn(
                         f"Model has batch size constraint. Falling back to batch_size=1. "
                         f"Original error: {e}",
-                        RuntimeWarning
+                        RuntimeWarning,
                     )
                     use_single_batch = True
                     # Reprocess all tiles with batch_size=1
                     return batch_inference(
-                        model, tiles, batch_size=1, device=str(device),
-                        show_progress=show_progress, dtype=dtype
+                        model,
+                        tiles,
+                        batch_size=1,
+                        device=str(device),
+                        show_progress=show_progress,
+                        dtype=dtype,
                     )
                 else:
                     raise RuntimeError(f"Model inference failed: {e}")
@@ -286,10 +300,10 @@ def get_model_info(model: nn.Module) -> dict:
     trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     return {
-        'device': str(device) if device else 'unknown',
-        'dtype': str(dtype) if dtype else 'unknown',
-        'num_parameters': num_parameters,
-        'trainable_parameters': trainable_parameters,
+        "device": str(device) if device else "unknown",
+        "dtype": str(dtype) if dtype else "unknown",
+        "num_parameters": num_parameters,
+        "trainable_parameters": trainable_parameters,
     }
 
 
@@ -328,7 +342,7 @@ def warmup_model(
         try:
             device = next(model.parameters()).device
         except StopIteration:
-            device = torch.device('cpu')
+            device = torch.device("cpu")
     else:
         device = torch.device(device)
 
@@ -343,7 +357,7 @@ def warmup_model(
             _ = model(dummy_input)
 
             # Synchronize if using CUDA
-            if device.type == 'cuda':
+            if device.type == "cuda":
                 torch.cuda.synchronize()
 
             end_time = time.time()

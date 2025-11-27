@@ -4,10 +4,11 @@ TokEye Main Application
 Time-series to spectrogram segmentation application for plasma physics analysis.
 """
 
-import gradio as gr
+import logging
 import sys
 from pathlib import Path
-import logging
+
+import gradio as gr
 
 # Constants
 DEFAULT_PORT = 7860
@@ -100,9 +101,8 @@ def create_app() -> gr.Blocks:
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        """
+        """,
     ) as app:
-
         # Title screen with logo if available
         if has_logo:
             with gr.Row():
@@ -117,20 +117,22 @@ def create_app() -> gr.Blocks:
                         container=False,
                         height=300,  # Larger
                         show_download_button=False,
-                        show_share_button=False
+                        show_share_button=False,
                     )
                     gr.Markdown(
                         """
                         # TokEye - Plasma Signal Segmentation
                         **Advanced time-series analysis for tokamak plasma diagnostics**
                         """,
-                        elem_classes="center-text"
+                        elem_classes="center-text",
                     )
                 with gr.Column(scale=1):
                     pass  # Empty column for centering
         else:
             gr.Markdown("# TokEye - Plasma Signal Segmentation")
-            gr.Markdown("**Advanced time-series analysis for tokamak plasma diagnostics**")
+            gr.Markdown(
+                "**Advanced time-series analysis for tokamak plasma diagnostics**"
+            )
 
         # Tabs
         with gr.Tabs():
@@ -206,11 +208,9 @@ def main():
         try:
             launch_gradio(app, port)
             break
-        except OSError as e:
+        except OSError:
             if attempt < MAX_PORT_ATTEMPTS - 1:
-                logging.warning(
-                    f"Port {port} unavailable, trying {port + 1}..."
-                )
+                logging.warning(f"Port {port} unavailable, trying {port + 1}...")
                 port += 1
             else:
                 logging.error(f"Failed to launch after {MAX_PORT_ATTEMPTS} attempts")

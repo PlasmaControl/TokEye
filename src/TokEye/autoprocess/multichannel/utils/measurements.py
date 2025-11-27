@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.stats import entropy
 
-def cdf_threshold(data, adjust=0., multiplier=100):
+
+def cdf_threshold(data, adjust=0.0, multiplier=100):
     H, W = data.shape
     median = np.median(data)
     data_2 = data.copy()
@@ -12,7 +13,12 @@ def cdf_threshold(data, adjust=0., multiplier=100):
     minmax = sorted_data.max() - sorted_data.min()
     sorted_data = (sorted_data - sorted_data.min()) / minmax * multiplier
     cdf_values = np.arange(1, len(sorted_data) + 1) / len(sorted_data)
-    cdf_values = (cdf_values - cdf_values.min()) / (cdf_values.max() - cdf_values.min()) * multiplier * 2
+    cdf_values = (
+        (cdf_values - cdf_values.min())
+        / (cdf_values.max() - cdf_values.min())
+        * multiplier
+        * 2
+    )
 
     x_cdf = np.linspace(sorted_data.min(), sorted_data.max(), multiplier)
     cdf = np.interp(x_cdf, sorted_data, cdf_values)
@@ -33,6 +39,7 @@ def cdf_threshold(data, adjust=0., multiplier=100):
 
     return binary
 
+
 def spectral_entropy(data: np.ndarray) -> float:
     """Calculate spectral entropy of 2D data using FFT power spectrum."""
     fft = np.fft.fft2(data)
@@ -50,9 +57,11 @@ def shannon_entropy(data: np.ndarray) -> float:
     probs = counts / counts.sum()
     return entropy(probs)
 
+
 def variance(data: np.ndarray) -> float:
     """Calculate variance of 2D data."""
     return float(np.var(data))
+
 
 def total_variation(data: np.ndarray) -> float:
     """Calculate total variation (sum of gradient magnitudes) of 2D data."""

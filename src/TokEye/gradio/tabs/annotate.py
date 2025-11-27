@@ -49,12 +49,13 @@ def numpy_to_pil(arr: np.ndarray) -> Image.Image:
     else:
         raise ValueError(f"Unsupported array dimensions: {arr.ndim}")
 
-    return Image.fromarray(rgba, mode='RGBA')
+    return Image.fromarray(rgba, mode="RGBA")
 
 
 # ============================================================================
 # Backdrop and Mask Loading Functions
 # ============================================================================
+
 
 def find_existing_mask(npy_filename: str) -> Optional[str]:
     """
@@ -88,7 +89,15 @@ def find_existing_mask(npy_filename: str) -> Optional[str]:
     return None
 
 
-def load_npy_as_backdrop(npy_file) -> Tuple[Optional[Image.Image], Optional[np.ndarray], Optional[np.ndarray], str, Optional[str]]:
+def load_npy_as_backdrop(
+    npy_file,
+) -> Tuple[
+    Optional[Image.Image],
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    str,
+    Optional[str],
+]:
     """
     Load .npy file as backdrop image and look for existing mask.
 
@@ -107,7 +116,13 @@ def load_npy_as_backdrop(npy_file) -> Tuple[Optional[Image.Image], Optional[np.n
 
         # Validate
         if arr.ndim not in [2, 3]:
-            return None, None, None, f"Error: Array must be 2D or 3D for annotation, got {arr.ndim}D", None
+            return (
+                None,
+                None,
+                None,
+                f"Error: Array must be 2D or 3D for annotation, got {arr.ndim}D",
+                None,
+            )
 
         # Convert to backdrop image
         backdrop_img = numpy_to_pil(arr)
@@ -163,7 +178,9 @@ def load_npy_as_backdrop(npy_file) -> Tuple[Optional[Image.Image], Optional[np.n
         return None, None, None, f"Error loading file: {str(e)}", None
 
 
-def create_composite_image(backdrop_img: Image.Image, mask_arr: np.ndarray) -> Image.Image:
+def create_composite_image(
+    backdrop_img: Image.Image, mask_arr: np.ndarray
+) -> Image.Image:
     """
     Create composite image with backdrop and mask overlay.
 
@@ -174,18 +191,18 @@ def create_composite_image(backdrop_img: Image.Image, mask_arr: np.ndarray) -> I
     Returns:
         Composite image with red semi-transparent mask overlay
     """
-    composite = backdrop_img.copy().convert('RGBA')
+    composite = backdrop_img.copy().convert("RGBA")
 
     # Create red overlay where mask is non-zero
     if mask_arr.max() > 0:
         # Create red overlay
-        overlay = Image.new('RGBA', composite.size, (0, 0, 0, 0))
+        overlay = Image.new("RGBA", composite.size, (0, 0, 0, 0))
 
         # Convert mask to PIL
-        mask_img = Image.fromarray(mask_arr, mode='L')
+        mask_img = Image.fromarray(mask_arr, mode="L")
 
         # Create red overlay with alpha channel from mask
-        red_overlay = Image.new('RGBA', composite.size)
+        red_overlay = Image.new("RGBA", composite.size)
         for x in range(composite.size[0]):
             for y in range(composite.size[1]):
                 if x < mask_arr.shape[1] and y < mask_arr.shape[0]:
@@ -203,9 +220,7 @@ def create_composite_image(backdrop_img: Image.Image, mask_arr: np.ndarray) -> I
 
 
 def save_mask_annotation(
-    mask_arr: Optional[np.ndarray],
-    npy_filename: str,
-    format_choice: str = "npy"
+    mask_arr: Optional[np.ndarray], npy_filename: str, format_choice: str = "npy"
 ) -> Optional[str]:
     """
     Save ONLY the mask annotation (not the backdrop image).
@@ -235,7 +250,7 @@ def save_mask_annotation(
         else:  # png
             filepath = annotations_dir / f"{base_name}_mask.png"
             # Save mask as grayscale image
-            mask_img = Image.fromarray(mask_arr, mode='L')
+            mask_img = Image.fromarray(mask_arr, mode="L")
             mask_img.save(filepath)
 
         gr.Info(f"Mask saved to {filepath}")
@@ -250,7 +265,10 @@ def save_mask_annotation(
 # Mask Extraction and Processing
 # ============================================================================
 
-def extract_mask_from_canvas(canvas_output, backdrop_arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
+
+def extract_mask_from_canvas(
+    canvas_output, backdrop_arr: Optional[np.ndarray]
+) -> Optional[np.ndarray]:
     """
     Extract only the mask layer from the canvas, removing the backdrop.
 
@@ -268,13 +286,13 @@ def extract_mask_from_canvas(canvas_output, backdrop_arr: Optional[np.ndarray]) 
         # Handle different output formats from ImageEditor
         if isinstance(canvas_output, dict):
             # Try to get composite or background
-            composite = canvas_output.get('composite')
+            composite = canvas_output.get("composite")
             if composite is None:
-                composite = canvas_output.get('background')
+                composite = canvas_output.get("background")
 
             if composite is None:
                 # Try layers
-                layers = canvas_output.get('layers', [])
+                layers = canvas_output.get("layers", [])
                 if not layers:
                     return None
                 composite = layers[0]
@@ -307,13 +325,18 @@ def extract_mask_from_canvas(canvas_output, backdrop_arr: Optional[np.ndarray]) 
                 # Resize if needed
                 if backdrop_red.shape != red_channel.shape:
                     from PIL import Image as PILImage
+
                     backdrop_img = PILImage.fromarray(backdrop_red)
-                    backdrop_img = backdrop_img.resize((red_channel.shape[1], red_channel.shape[0]))
+                    backdrop_img = backdrop_img.resize(
+                        (red_channel.shape[1], red_channel.shape[0])
+                    )
                     backdrop_red = np.array(backdrop_img)
 
                 # Difference
                 diff = red_channel.astype(np.int16) - backdrop_red.astype(np.int16)
-                mask = (diff > 30).astype(np.uint8) * 255  # Threshold for new annotations
+                mask = (diff > 30).astype(
+                    np.uint8
+                ) * 255  # Threshold for new annotations
             else:
                 # No backdrop - just threshold red channel
                 mask = (red_channel > 128).astype(np.uint8) * 255
@@ -332,17 +355,20 @@ def extract_mask_from_canvas(canvas_output, backdrop_arr: Optional[np.ndarray]) 
 # Gradio Interface
 # ============================================================================
 
+
 def annotate_tab():
     """Create the annotation tab interface."""
 
     with gr.Column() as tab:
         gr.Markdown("# Mask Annotation Interface")
-        gr.Markdown("Load .npy files (e.g., spectrograms) and annotate masks. The image serves as a backdrop only.")
+        gr.Markdown(
+            "Load .npy files (e.g., spectrograms) and annotate masks. The image serves as a backdrop only."
+        )
 
         # State variables
         backdrop_array_state = gr.State(None)  # Original .npy array (read-only)
-        mask_array_state = gr.State(None)      # Editable mask
-        npy_filename_state = gr.State(None)    # Track filename for saving
+        mask_array_state = gr.State(None)  # Editable mask
+        npy_filename_state = gr.State(None)  # Track filename for saving
 
         with gr.Row():
             # Left column: Controls
@@ -351,7 +377,7 @@ def annotate_tab():
 
                 npy_file_input = gr.File(
                     label="Upload .npy File (spectrogram/transform output)",
-                    file_types=[".npy"]
+                    file_types=[".npy"],
                 )
 
                 load_btn = gr.Button("Load for Annotation", variant="primary")
@@ -376,9 +402,7 @@ def annotate_tab():
                 gr.Markdown("### Save Mask")
 
                 save_format = gr.Radio(
-                    choices=["npy", "png"],
-                    value="npy",
-                    label="Mask Format"
+                    choices=["npy", "png"], value="npy", label="Mask Format"
                 )
 
                 save_mask_btn = gr.Button("Save Mask", variant="primary")
@@ -397,10 +421,10 @@ def annotate_tab():
                     brush=gr.Brush(
                         colors=["#FF0000", "#00FF00", "#0000FF", "#FFFFFF"],
                         default_size=5,
-                        default_color="#FF0000"
+                        default_color="#FF0000",
                     ),
                     eraser=gr.Eraser(default_size=10),
-                    sources=[]  # No upload sources - only loaded programmatically
+                    sources=[],  # No upload sources - only loaded programmatically
                 )
 
                 gr.Markdown("""
@@ -420,7 +444,7 @@ def annotate_tab():
                     type="pil",
                     interactive=False,
                     show_download_button=False,
-                    show_share_button=False
+                    show_share_button=False,
                 )
 
                 backdrop_preview = gr.Image(
@@ -428,7 +452,7 @@ def annotate_tab():
                     type="pil",
                     interactive=False,
                     show_download_button=False,
-                    show_share_button=False
+                    show_share_button=False,
                 )
 
             update_preview_btn = gr.Button("Update Preview")
@@ -439,7 +463,9 @@ def annotate_tab():
 
         def handle_load_npy(npy_file):
             """Load .npy file as backdrop and existing mask if available."""
-            backdrop_img, backdrop_arr, mask_arr, info, filename = load_npy_as_backdrop(npy_file)
+            backdrop_img, backdrop_arr, mask_arr, info, filename = load_npy_as_backdrop(
+                npy_file
+            )
 
             if backdrop_img is None:
                 return {
@@ -447,7 +473,7 @@ def annotate_tab():
                     mask_array_state: None,
                     npy_filename_state: None,
                     annotation_canvas: None,
-                    file_info: info
+                    file_info: info,
                 }
 
             # Create composite: backdrop + mask overlay
@@ -458,7 +484,7 @@ def annotate_tab():
                 mask_array_state: mask_arr,
                 npy_filename_state: filename,
                 annotation_canvas: composite,
-                file_info: info
+                file_info: info,
             }
 
         load_btn.click(
@@ -469,8 +495,8 @@ def annotate_tab():
                 mask_array_state,
                 npy_filename_state,
                 annotation_canvas,
-                file_info
-            ]
+                file_info,
+            ],
         )
 
         def handle_save_mask(canvas_output, backdrop_arr, filename, save_fmt):
@@ -493,8 +519,13 @@ def annotate_tab():
 
         save_mask_btn.click(
             fn=handle_save_mask,
-            inputs=[annotation_canvas, backdrop_array_state, npy_filename_state, save_format],
-            outputs=[save_status]
+            inputs=[
+                annotation_canvas,
+                backdrop_array_state,
+                npy_filename_state,
+                save_format,
+            ],
+            outputs=[save_status],
         )
 
         def handle_update_preview(canvas_output, backdrop_arr, backdrop_img_state):
@@ -508,7 +539,7 @@ def annotate_tab():
                 return None, None
 
             # Convert mask to image
-            mask_img = Image.fromarray(mask_arr, mode='L')
+            mask_img = Image.fromarray(mask_arr, mode="L")
 
             # Show backdrop separately
             backdrop_display = None
@@ -520,7 +551,7 @@ def annotate_tab():
         update_preview_btn.click(
             fn=handle_update_preview,
             inputs=[annotation_canvas, backdrop_array_state, backdrop_array_state],
-            outputs=[mask_preview, backdrop_preview]
+            outputs=[mask_preview, backdrop_preview],
         )
 
     return tab

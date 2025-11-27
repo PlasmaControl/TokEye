@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 def create_inference_example(model_dir: Path):
     """
     Create inference example script demonstrating model usage.
-    
+
     Args:
         model_dir: Directory to save the example script
     """
-    logger.info("\n" + "="*60)
+    logger.info("\n" + "=" * 60)
     logger.info("Step 5: Creating inference example script")
-    logger.info("="*60)
-    
+    logger.info("=" * 60)
+
     inference_script = '''"""
 Inference example for the final segmentation model.
 Demonstrates how to load and use both PyTorch Lightning checkpoint and TorchScript model.
@@ -297,12 +297,11 @@ if __name__ == "__main__":
     print("Examples complete!")
     print("="*60)
 '''
-    
+
     # Write script to file
-    script_path = model_dir / 'inference_example.py'
-    with open(script_path, 'w') as f:
+    script_path = model_dir / "inference_example.py"
+    with open(script_path, "w") as f:
         f.write(inference_script)
-    
+
     logger.info(f"✓ Created inference example: {script_path}")
     logger.info(f"  Run with: python {script_path}")
-

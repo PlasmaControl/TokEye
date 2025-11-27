@@ -37,7 +37,7 @@ cache_manager = CacheManager(cache_dir="cache", max_size_mb=1000, max_entries=50
 def plot_to_image(fig: plt.Figure) -> Image.Image:
     """Convert matplotlib figure to PIL Image."""
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
     buf.seek(0)
     img = Image.open(buf)
     return img
@@ -45,10 +45,10 @@ def plot_to_image(fig: plt.Figure) -> Image.Image:
 
 def plot_signal(signal: np.ndarray, title: str = "") -> Image.Image:
     """Plot 1D signal and return as image."""
-    fig, ax = plt.subplots(figsize=(10, 4), facecolor='black')
-    ax.set_facecolor('black')
-    ax.plot(signal, color='#FF6B35', linewidth=0.5)
-    ax.axis('off')  # Turn off axes
+    fig, ax = plt.subplots(figsize=(10, 4), facecolor="black")
+    ax.set_facecolor("black")
+    ax.plot(signal, color="#FF6B35", linewidth=0.5)
+    ax.axis("off")  # Turn off axes
     plt.tight_layout(pad=0)
     img = plot_to_image(fig)
     plt.close(fig)
@@ -57,10 +57,10 @@ def plot_signal(signal: np.ndarray, title: str = "") -> Image.Image:
 
 def plot_spectrogram(spec: np.ndarray, title: str = "") -> Image.Image:
     """Plot 2D spectrogram and return as image."""
-    fig, ax = plt.subplots(figsize=(10, 6), facecolor='black')
-    ax.set_facecolor('black')
-    im = ax.imshow(spec, aspect='auto', origin='lower', cmap='gist_heat')
-    ax.axis('off')  # Turn off axes, title, colorbar
+    fig, ax = plt.subplots(figsize=(10, 6), facecolor="black")
+    ax.set_facecolor("black")
+    im = ax.imshow(spec, aspect="auto", origin="lower", cmap="gist_heat")
+    ax.axis("off")  # Turn off axes, title, colorbar
     plt.tight_layout(pad=0)
     img = plot_to_image(fig)
     plt.close(fig)
@@ -71,6 +71,7 @@ def plot_spectrogram(spec: np.ndarray, title: str = "") -> Image.Image:
 # Section 1: Input Processing
 # ============================================================================
 
+
 def get_available_signals() -> list:
     """Get list of available .npy signal files in data/."""
     data_dir = Path("data")
@@ -80,7 +81,9 @@ def get_available_signals() -> list:
     return [str(s) for s in signals] if signals else []
 
 
-def load_signal_file(file=None, dropdown_path: str = None) -> Tuple[Optional[np.ndarray], str, Optional[Image.Image]]:
+def load_signal_file(
+    file=None, dropdown_path: str = None
+) -> Tuple[Optional[np.ndarray], str, Optional[Image.Image]]:
     """
     Load .npy file and display information.
     Accepts either a file upload or a dropdown path selection.
@@ -132,9 +135,7 @@ def load_signal_file(file=None, dropdown_path: str = None) -> Tuple[Optional[np.
 
 
 def apply_preemphasis_filter(
-    signal: Optional[np.ndarray],
-    enable: bool,
-    alpha: float
+    signal: Optional[np.ndarray], enable: bool, alpha: float
 ) -> Tuple[Optional[np.ndarray], Optional[Image.Image], str]:
     """
     Apply pre-emphasis filter to signal.
@@ -162,6 +163,7 @@ def apply_preemphasis_filter(
 # ============================================================================
 # Section 2: Transform Computation
 # ============================================================================
+
 
 def compute_transform(
     signal: Optional[np.ndarray],
@@ -191,18 +193,18 @@ def compute_transform(
         if transform_type == "STFT":
             # Generate cache key
             params = {
-                'transform': 'stft',
-                'n_fft': n_fft,
-                'hop_length': hop_length,
-                'clip_dc': clip_dc,
-                'percentile_low': percentile_low,
-                'percentile_high': percentile_high,
+                "transform": "stft",
+                "n_fft": n_fft,
+                "hop_length": hop_length,
+                "clip_dc": clip_dc,
+                "percentile_low": percentile_low,
+                "percentile_high": percentile_high,
             }
-            cache_key = generate_cache_key(signal, params, prefix='stft')
+            cache_key = generate_cache_key(signal, params, prefix="stft")
 
             # Check cache
-            if cache_manager.exists(cache_key, 'spectrogram'):
-                result = cache_manager.load(cache_key, 'spectrogram')
+            if cache_manager.exists(cache_key, "spectrogram"):
+                result = cache_manager.load(cache_key, "spectrogram")
                 status = f"Cache hit! STFT loaded from cache."
             else:
                 # Compute STFT
@@ -215,7 +217,7 @@ def compute_transform(
                     percentile_high=percentile_high,
                 )
                 # Save to cache
-                cache_manager.save(cache_key, result, 'spectrogram')
+                cache_manager.save(cache_key, result, "spectrogram")
                 status = f"STFT computed and cached. Shape: {result.shape}"
 
             plot_img = plot_spectrogram(result)
@@ -223,18 +225,18 @@ def compute_transform(
         else:  # Wavelet
             # Generate cache key
             params = {
-                'transform': 'wavelet',
-                'wavelet': wavelet_type,
-                'level': wavelet_level,
-                'mode': wavelet_mode,
-                'percentile_low': percentile_low,
-                'percentile_high': percentile_high,
+                "transform": "wavelet",
+                "wavelet": wavelet_type,
+                "level": wavelet_level,
+                "mode": wavelet_mode,
+                "percentile_low": percentile_low,
+                "percentile_high": percentile_high,
             }
-            cache_key = generate_cache_key(signal, params, prefix='wavelet')
+            cache_key = generate_cache_key(signal, params, prefix="wavelet")
 
             # Check cache
-            if cache_manager.exists(cache_key, 'wavelet'):
-                result = cache_manager.load(cache_key, 'wavelet')
+            if cache_manager.exists(cache_key, "wavelet"):
+                result = cache_manager.load(cache_key, "wavelet")
                 status = f"Cache hit! Wavelet loaded from cache."
             else:
                 # Compute wavelet
@@ -247,7 +249,7 @@ def compute_transform(
                     percentile_high=percentile_high,
                 )
                 # Save to cache
-                cache_manager.save(cache_key, result, 'wavelet')
+                cache_manager.save(cache_key, result, "wavelet")
                 status = f"Wavelet computed and cached. Shape: {result.shape}"
 
             plot_img = plot_spectrogram(result)
@@ -269,6 +271,7 @@ def save_transform_image(img: Optional[Image.Image]) -> Optional[str]:
         output_dir.mkdir(exist_ok=True)
 
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = output_dir / f"transform_{timestamp}.png"
 
@@ -285,6 +288,7 @@ def save_transform_image(img: Optional[Image.Image]) -> Optional[str]:
 # Section 3: Model Inference
 # ============================================================================
 
+
 def get_available_models() -> list:
     """Get list of available .pt model files."""
     model_dir = Path("model")
@@ -300,7 +304,7 @@ def run_inference(
     model_path: str,
     tile_size: int,
     batch_size: int,
-    progress=gr.Progress()
+    progress=gr.Progress(),
 ) -> Tuple[Optional[np.ndarray], str, str]:
     """
     Run model inference on spectrogram.
@@ -319,15 +323,15 @@ def run_inference(
 
         # Generate cache key for inference
         params = {
-            'model': model_path,
-            'tile_size': tile_size,
-            'batch_size': batch_size,
+            "model": model_path,
+            "tile_size": tile_size,
+            "batch_size": batch_size,
         }
-        cache_key = generate_cache_key(spectrogram, params, prefix='inference')
+        cache_key = generate_cache_key(spectrogram, params, prefix="inference")
 
         # Check cache
-        if cache_manager.exists(cache_key, 'inference'):
-            predictions = cache_manager.load(cache_key, 'inference')
+        if cache_manager.exists(cache_key, "inference"):
+            predictions = cache_manager.load(cache_key, "inference")
             status = f"Cache hit! Predictions loaded from cache."
 
             # Generate output text
@@ -342,12 +346,14 @@ def run_inference(
             return predictions, output_text, status
 
         # Load model
-        model = load_model(model_path, device='auto')
+        model = load_model(model_path, device="auto")
 
         progress(0.2, desc="Tiling spectrogram...")
 
         # Debug: print spectrogram shape
-        print(f"DEBUG: Input spectrogram shape: {spectrogram.shape}, ndim: {spectrogram.ndim}")
+        print(
+            f"DEBUG: Input spectrogram shape: {spectrogram.shape}, ndim: {spectrogram.ndim}"
+        )
 
         # Add channel dimension if needed (C, H, W)
         if spectrogram.ndim == 2:
@@ -355,7 +361,9 @@ def run_inference(
             print(f"DEBUG: Added channel dim, new shape: {spec_with_channels.shape}")
         else:
             spec_with_channels = spectrogram
-            print(f"DEBUG: Spectrogram already has channels, shape: {spec_with_channels.shape}")
+            print(
+                f"DEBUG: Spectrogram already has channels, shape: {spec_with_channels.shape}"
+            )
 
         # Tile spectrogram
         tiles, metadata = tile_spectrogram(spec_with_channels, tile_size=tile_size)
@@ -365,10 +373,7 @@ def run_inference(
 
         # Run inference
         predictions_tiles = batch_inference(
-            model,
-            tiles,
-            batch_size=batch_size,
-            show_progress=False
+            model, tiles, batch_size=batch_size, show_progress=False
         )
 
         progress(0.8, desc="Stitching predictions...")
@@ -378,32 +383,38 @@ def run_inference(
         if len(predictions_tiles) > 0:
             pred_shape = predictions_tiles[0].shape
             if len(pred_shape) == 3:  # (C, H, W)
-                metadata['num_channels'] = pred_shape[0]
-                metadata['has_channels'] = True
-                print(f"DEBUG: Updated metadata for {pred_shape[0]}-channel predictions")
+                metadata["num_channels"] = pred_shape[0]
+                metadata["has_channels"] = True
+                print(
+                    f"DEBUG: Updated metadata for {pred_shape[0]}-channel predictions"
+                )
             elif len(pred_shape) == 2:  # (H, W)
-                metadata['num_channels'] = None
-                metadata['has_channels'] = False
+                metadata["num_channels"] = None
+                metadata["has_channels"] = False
                 print(f"DEBUG: Predictions are 2D (no channel dimension)")
 
         # Stitch predictions back together
-        predictions_full = stitch_predictions(predictions_tiles, metadata, blend_overlap=True)
+        predictions_full = stitch_predictions(
+            predictions_tiles, metadata, blend_overlap=True
+        )
 
         # Keep multi-channel predictions for per-channel thresholding
         # No longer combine channels here - will be handled in visualization
 
         # Save to cache
-        cache_manager.save(cache_key, predictions_full, 'inference')
+        cache_manager.save(cache_key, predictions_full, "inference")
 
         progress(1.0, desc="Complete!")
 
         # Generate output text
         if predictions_full.ndim == 3:
             num_channels = predictions_full.shape[0]
-            channel_info = "\n".join([
-                f"  Channel {i}: min={predictions_full[i].min():.4f}, max={predictions_full[i].max():.4f}, mean={predictions_full[i].mean():.4f}"
-                for i in range(num_channels)
-            ])
+            channel_info = "\n".join(
+                [
+                    f"  Channel {i}: min={predictions_full[i].min():.4f}, max={predictions_full[i].max():.4f}, mean={predictions_full[i].mean():.4f}"
+                    for i in range(num_channels)
+                ]
+            )
             output_text = f"""
 **Inference Results:**
 - Model: {Path(model_path).name}
@@ -435,6 +446,7 @@ def run_inference(
 # Section 4: Visualization
 # ============================================================================
 
+
 def compute_threshold_bounds(
     predictions: Optional[np.ndarray],
 ) -> Tuple[str, Dict[str, Any]]:
@@ -452,19 +464,25 @@ def compute_threshold_bounds(
         if predictions.ndim == 3:
             num_channels = predictions.shape[0]
             bounds = {}
-            info_lines = [f"**Threshold Bounds (computed for {num_channels} channels):**"]
+            info_lines = [
+                f"**Threshold Bounds (computed for {num_channels} channels):**"
+            ]
 
             for i in range(num_channels):
                 lower, upper = compute_channel_threshold_bounds(predictions[i])
-                bounds[f'ch{i}'] = {'lower': lower, 'upper': upper}
-                info_lines.append(f"- Channel {i}: lower={lower:.3f}, upper={upper:.3f}")
+                bounds[f"ch{i}"] = {"lower": lower, "upper": upper}
+                info_lines.append(
+                    f"- Channel {i}: lower={lower:.3f}, upper={upper:.3f}"
+                )
 
             info_text = "\n".join(info_lines)
         else:
             # Single channel
             lower, upper = compute_channel_threshold_bounds(predictions)
-            bounds = {'ch0': {'lower': lower, 'upper': upper}}
-            info_text = f"**Threshold Bounds:**\n- Lower: {lower:.3f}\n- Upper: {upper:.3f}"
+            bounds = {"ch0": {"lower": lower, "upper": upper}}
+            info_text = (
+                f"**Threshold Bounds:**\n- Lower: {lower:.3f}\n- Upper: {upper:.3f}"
+            )
 
         return info_text, bounds
 
@@ -529,19 +547,17 @@ def generate_visualization(
 
         # Remove small objects
         cleaned_mask, num_objects = remove_small_objects(
-            binary_mask,
-            min_size=min_obj_size,
-            connectivity=8
+            binary_mask, min_size=min_obj_size, connectivity=8
         )
 
         # Create overlay
         # Map UI mode to function mode
-        if overlay_mode == 'White':
-            mode: Literal['white', 'bicolor', 'hsv'] = 'white'
-        elif overlay_mode == 'Bicolor':
-            mode = 'bicolor'
+        if overlay_mode == "White":
+            mode: Literal["white", "bicolor", "hsv"] = "white"
+        elif overlay_mode == "Bicolor":
+            mode = "bicolor"
         else:
-            mode = 'hsv'
+            mode = "hsv"
 
         # For visualization, we need 2D spectrogram
         if spectrogram.ndim == 3:
@@ -574,7 +590,9 @@ def generate_visualization(
             display_height = 600
             display_width = int(display_height * aspect_ratio)
 
-        overlay_img = overlay_img.resize((display_width, display_height), Image.Resampling.LANCZOS)
+        overlay_img = overlay_img.resize(
+            (display_width, display_height), Image.Resampling.LANCZOS
+        )
 
         # Compute statistics
         total_pixels = cleaned_mask.size
@@ -590,8 +608,8 @@ def generate_visualization(
             stats_text = f"""
 **Detection Statistics:**
 - Total objects detected: {num_objects}
-- Channel 0 pixels: {ch0_pixels:,} ({ch0_pixels/total_pixels*100:.2f}%)
-- Channel 1 pixels: {ch1_pixels:,} ({ch1_pixels/total_pixels*100:.2f}%)
+- Channel 0 pixels: {ch0_pixels:,} ({ch0_pixels / total_pixels * 100:.2f}%)
+- Channel 1 pixels: {ch1_pixels:,} ({ch1_pixels / total_pixels * 100:.2f}%)
 - Total area coverage: {coverage:.2f}%
 - Thresholds: Ch0=[{ch0_lower:.3f}, {ch0_upper:.3f}], Ch1=[{ch1_lower:.3f}, {ch1_upper:.3f}]
 - Min object size: {min_obj_size} pixels
@@ -600,7 +618,9 @@ def generate_visualization(
             # Simple heuristic to estimate coherent vs transient
             if num_objects > 0:
                 mask_uint8 = (cleaned_mask > 0).astype(np.uint8) * 255
-                _, _, stats_array, _ = cv2.connectedComponentsWithStats(mask_uint8, connectivity=8)
+                _, _, stats_array, _ = cv2.connectedComponentsWithStats(
+                    mask_uint8, connectivity=8
+                )
 
                 areas = stats_array[1:, cv2.CC_STAT_AREA]  # Skip background
                 coherent_count = np.sum(areas > 100)  # Arbitrary threshold
@@ -636,6 +656,7 @@ def save_result_image(img: Optional[Image.Image]) -> Optional[str]:
         output_dir.mkdir(exist_ok=True)
 
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = output_dir / f"result_{timestamp}.png"
 
@@ -652,12 +673,15 @@ def save_result_image(img: Optional[Image.Image]) -> Optional[str]:
 # Gradio Interface
 # ============================================================================
 
+
 def analyze_tab():
     """Create the analysis tab interface."""
 
     with gr.Column() as tab:
         gr.Markdown("# TokEye Analysis Pipeline")
-        gr.Markdown("Upload a signal file (.npy) and process through the complete analysis pipeline.")
+        gr.Markdown(
+            "Upload a signal file (.npy) and process through the complete analysis pipeline."
+        )
 
         # State variables
         signal_state = gr.State(None)
@@ -678,14 +702,13 @@ def analyze_tab():
                         signal_dropdown = gr.Dropdown(
                             choices=get_available_signals(),
                             label="Select Signal from data/",
-                            allow_custom_value=False
+                            allow_custom_value=False,
                         )
                         refresh_signals_btn = gr.Button("🔄 Refresh")
 
                     gr.Markdown("Or upload a custom file:")
                     file_input = gr.File(
-                        label="Upload Signal File (.npy)",
-                        file_types=[".npy"]
+                        label="Upload Signal File (.npy)", file_types=[".npy"]
                     )
                     upload_btn = gr.Button("Load File", variant="primary")
 
@@ -701,7 +724,7 @@ def analyze_tab():
                 interactive=False,
                 show_download_button=False,
                 show_share_button=False,
-                sources=[]
+                sources=[],
             )
 
             gr.Markdown("### Pre-emphasis Filter")
@@ -712,7 +735,7 @@ def analyze_tab():
                     maximum=1.0,
                     value=0.97,
                     step=0.01,
-                    label="Alpha coefficient"
+                    label="Alpha coefficient",
                 )
 
             apply_preemph_btn = gr.Button("Apply Pre-emphasis")
@@ -723,7 +746,7 @@ def analyze_tab():
                 interactive=False,
                 show_download_button=False,
                 show_share_button=False,
-                sources=[]
+                sources=[],
             )
 
         # ====================================================================
@@ -731,9 +754,7 @@ def analyze_tab():
         # ====================================================================
         with gr.Accordion("2. Time-Frequency Transform", open=False):
             transform_type = gr.Radio(
-                choices=["STFT", "Wavelet"],
-                value="STFT",
-                label="Transform Type"
+                choices=["STFT", "Wavelet"], value="STFT", label="Transform Type"
             )
 
             # STFT parameters
@@ -741,18 +762,10 @@ def analyze_tab():
                 gr.Markdown("### STFT Parameters")
                 with gr.Row():
                     n_fft = gr.Slider(
-                        minimum=256,
-                        maximum=4096,
-                        value=1024,
-                        step=256,
-                        label="N_FFT"
+                        minimum=256, maximum=4096, value=1024, step=256, label="N_FFT"
                     )
                     hop_length = gr.Slider(
-                        minimum=64,
-                        maximum=512,
-                        value=128,
-                        step=64,
-                        label="Hop Length"
+                        minimum=64, maximum=512, value=128, step=64, label="Hop Length"
                     )
                 clip_dc = gr.Checkbox(label="Clip DC Bin", value=True)
 
@@ -763,19 +776,26 @@ def analyze_tab():
                     wavelet_type = gr.Dropdown(
                         choices=[f"db{i}" for i in range(1, 21)],
                         value="db8",
-                        label="Wavelet Type"
+                        label="Wavelet Type",
                     )
                     wavelet_level = gr.Slider(
                         minimum=1,
                         maximum=12,
                         value=9,
                         step=1,
-                        label="Decomposition Level"
+                        label="Decomposition Level",
                     )
                 wavelet_mode = gr.Dropdown(
-                    choices=['sym', 'periodic', 'zero', 'constant', 'smooth', 'reflect'],
-                    value='sym',
-                    label="Extension Mode"
+                    choices=[
+                        "sym",
+                        "periodic",
+                        "zero",
+                        "constant",
+                        "smooth",
+                        "reflect",
+                    ],
+                    value="sym",
+                    label="Extension Mode",
                 )
 
             # Percentile clipping parameters
@@ -786,14 +806,14 @@ def analyze_tab():
                     maximum=10.0,
                     value=1.0,
                     step=0.1,
-                    label="Lower Percentile Clip"
+                    label="Lower Percentile Clip",
                 )
                 percentile_high = gr.Slider(
                     minimum=90.0,
                     maximum=100.0,
                     value=99.0,
                     step=0.1,
-                    label="Upper Percentile Clip"
+                    label="Upper Percentile Clip",
                 )
 
             compute_transform_btn = gr.Button("Compute Transform", variant="primary")
@@ -804,7 +824,7 @@ def analyze_tab():
                 interactive=False,
                 show_download_button=False,
                 show_share_button=False,
-                sources=[]
+                sources=[],
             )
             transform_status = gr.Textbox(label="Status", interactive=False)
 
@@ -818,32 +838,22 @@ def analyze_tab():
                 model_dropdown = gr.Dropdown(
                     choices=get_available_models(),
                     label="Select Model",
-                    allow_custom_value=True
+                    allow_custom_value=True,
                 )
                 refresh_models_btn = gr.Button("= Refresh")
 
             with gr.Row():
                 tile_size_slider = gr.Slider(
-                    minimum=64,
-                    maximum=1024,
-                    value=512,
-                    step=64,
-                    label="Tile Size"
+                    minimum=64, maximum=1024, value=512, step=64, label="Tile Size"
                 )
                 batch_size_slider = gr.Slider(
-                    minimum=1,
-                    maximum=64,
-                    value=32,
-                    step=1,
-                    label="Batch Size"
+                    minimum=1, maximum=64, value=32, step=1, label="Batch Size"
                 )
 
             run_inference_btn = gr.Button("Run Inference", variant="primary")
 
             inference_output = gr.Textbox(
-                label="Inference Results",
-                lines=8,
-                interactive=False
+                label="Inference Results", lines=8, interactive=False
             )
             inference_status = gr.Textbox(label="Status", interactive=False)
 
@@ -852,12 +862,14 @@ def analyze_tab():
         # ====================================================================
         with gr.Accordion("4. Visualization", open=False):
             # Compute threshold bounds button
-            compute_bounds_btn = gr.Button("Compute Threshold Bounds", variant="secondary")
+            compute_bounds_btn = gr.Button(
+                "Compute Threshold Bounds", variant="secondary"
+            )
             threshold_bounds_info = gr.Textbox(
                 label="Threshold Bounds",
                 lines=4,
                 interactive=False,
-                value="Click 'Compute Threshold Bounds' after inference"
+                value="Click 'Compute Threshold Bounds' after inference",
             )
 
             # Channel 0 thresholds
@@ -868,14 +880,14 @@ def analyze_tab():
                     maximum=1.0,
                     value=0.0,
                     step=0.01,
-                    label="Channel 0 Lower Threshold"
+                    label="Channel 0 Lower Threshold",
                 )
                 ch0_upper_slider = gr.Slider(
                     minimum=0.0,
                     maximum=1.0,
                     value=1.0,
                     step=0.01,
-                    label="Channel 0 Upper Threshold"
+                    label="Channel 0 Upper Threshold",
                 )
 
             # Channel 1 thresholds
@@ -886,14 +898,14 @@ def analyze_tab():
                     maximum=1.0,
                     value=0.0,
                     step=0.01,
-                    label="Channel 1 Lower Threshold"
+                    label="Channel 1 Lower Threshold",
                 )
                 ch1_upper_slider = gr.Slider(
                     minimum=0.0,
                     maximum=1.0,
                     value=1.0,
                     step=0.01,
-                    label="Channel 1 Upper Threshold"
+                    label="Channel 1 Upper Threshold",
                 )
 
             # Other parameters
@@ -904,21 +916,17 @@ def analyze_tab():
                     maximum=500,
                     value=50,
                     step=10,
-                    label="Min Object Size (pixels)"
+                    label="Min Object Size (pixels)",
                 )
 
             with gr.Row():
                 overlay_mode_radio = gr.Radio(
-                    choices=['White', 'Bicolor', 'HSV'],
-                    value='White',
-                    label="Overlay Mode"
+                    choices=["White", "Bicolor", "HSV"],
+                    value="White",
+                    label="Overlay Mode",
                 )
                 overlay_alpha_slider = gr.Slider(
-                    minimum=0.0,
-                    maximum=1.0,
-                    value=0.6,
-                    step=0.1,
-                    label="Overlay Alpha"
+                    minimum=0.0, maximum=1.0, value=0.6, step=0.1, label="Overlay Alpha"
                 )
 
             generate_viz_btn = gr.Button("Generate Visualization", variant="primary")
@@ -929,12 +937,10 @@ def analyze_tab():
                 interactive=False,
                 show_download_button=False,
                 show_share_button=False,
-                sources=[]
+                sources=[],
             )
             viz_stats = gr.Textbox(
-                label="Detection Statistics",
-                lines=8,
-                interactive=False
+                label="Detection Statistics", lines=8, interactive=False
             )
 
             save_result_btn = gr.Button("Save Result Image")
@@ -947,41 +953,41 @@ def analyze_tab():
         upload_btn.click(
             fn=load_signal_file,
             inputs=[file_input, signal_dropdown],
-            outputs=[signal_state, file_info, signal_plot]
+            outputs=[signal_state, file_info, signal_plot],
         )
 
         # Dropdown signal selection
         signal_dropdown.change(
             fn=load_signal_file,
             inputs=[file_input, signal_dropdown],
-            outputs=[signal_state, file_info, signal_plot]
+            outputs=[signal_state, file_info, signal_plot],
         )
 
         # Refresh signals
         refresh_signals_btn.click(
             fn=lambda: gr.update(choices=get_available_signals()),
             inputs=[],
-            outputs=[signal_dropdown]
+            outputs=[signal_dropdown],
         )
 
         # Apply pre-emphasis
         apply_preemph_btn.click(
             fn=apply_preemphasis_filter,
             inputs=[signal_state, preemph_enable, preemph_alpha],
-            outputs=[processed_signal_state, filtered_plot, preemph_status]
+            outputs=[processed_signal_state, filtered_plot, preemph_status],
         )
 
         # Toggle transform parameters visibility
         def toggle_transform_params(choice):
             return {
                 stft_params: gr.update(visible=(choice == "STFT")),
-                wavelet_params: gr.update(visible=(choice == "Wavelet"))
+                wavelet_params: gr.update(visible=(choice == "Wavelet")),
             }
 
         transform_type.change(
             fn=toggle_transform_params,
             inputs=[transform_type],
-            outputs=[stft_params, wavelet_params]
+            outputs=[stft_params, wavelet_params],
         )
 
         # Compute transform
@@ -999,21 +1005,19 @@ def analyze_tab():
                 percentile_low,
                 percentile_high,
             ],
-            outputs=[transform_state, transform_plot, transform_status]
+            outputs=[transform_state, transform_plot, transform_status],
         )
 
         # Save transform image
         save_transform_btn.click(
-            fn=save_transform_image,
-            inputs=[transform_plot],
-            outputs=[]
+            fn=save_transform_image, inputs=[transform_plot], outputs=[]
         )
 
         # Refresh models
         refresh_models_btn.click(
             fn=lambda: gr.update(choices=get_available_models()),
             inputs=[],
-            outputs=[model_dropdown]
+            outputs=[model_dropdown],
         )
 
         # Run inference
@@ -1025,14 +1029,14 @@ def analyze_tab():
                 tile_size_slider,
                 batch_size_slider,
             ],
-            outputs=[predictions_state, inference_output, inference_status]
+            outputs=[predictions_state, inference_output, inference_status],
         )
 
         # Compute threshold bounds
         compute_bounds_btn.click(
             fn=compute_threshold_bounds,
             inputs=[predictions_state],
-            outputs=[threshold_bounds_info]
+            outputs=[threshold_bounds_info],
         )
 
         # Generate visualization
@@ -1049,14 +1053,10 @@ def analyze_tab():
                 overlay_mode_radio,
                 overlay_alpha_slider,
             ],
-            outputs=[viz_output, viz_stats]
+            outputs=[viz_output, viz_stats],
         )
 
         # Save result image
-        save_result_btn.click(
-            fn=save_result_image,
-            inputs=[viz_output],
-            outputs=[]
-        )
+        save_result_btn.click(fn=save_result_image, inputs=[viz_output], outputs=[])
 
     return tab

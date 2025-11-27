@@ -19,7 +19,7 @@ import time
 def generate_cache_key(
     data: np.ndarray,
     params: Dict,
-    prefix: str = '',
+    prefix: str = "",
 ) -> str:
     """
     Generate a unique cache key based on data and parameters.
@@ -73,7 +73,7 @@ class CacheManager:
 
     def __init__(
         self,
-        cache_dir: str = '.cache',
+        cache_dir: str = ".cache",
         max_size_mb: float = 1000,
         max_entries: int = 1000,
         enable_compression: bool = True,
@@ -96,7 +96,7 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Separate subdirectories for different cache types
-        self.cache_types = ['spectrogram', 'inference', 'wavelet', 'general']
+        self.cache_types = ["spectrogram", "inference", "wavelet", "general"]
         for cache_type in self.cache_types:
             (self.cache_dir / cache_type).mkdir(exist_ok=True)
 
@@ -111,16 +111,15 @@ class CacheManager:
         """Get file path for cache entry."""
         if cache_type not in self.cache_types:
             warnings.warn(
-                f"Unknown cache_type '{cache_type}', using 'general'",
-                RuntimeWarning
+                f"Unknown cache_type '{cache_type}', using 'general'", RuntimeWarning
             )
-            cache_type = 'general'
+            cache_type = "general"
 
         return self.cache_dir / cache_type / f"{key}.pkl"
 
     def _get_metadata_path(self) -> Path:
         """Get path to metadata file."""
-        return self.cache_dir / 'metadata.json'
+        return self.cache_dir / "metadata.json"
 
     def _load_metadata(self):
         """Load cache metadata from disk."""
@@ -128,21 +127,26 @@ class CacheManager:
 
         if metadata_path.exists():
             try:
-                with open(metadata_path, 'r') as f:
+                with open(metadata_path, "r") as f:
                     metadata = json.load(f)
 
                 # Reconstruct LRU tracker
-                for key, value in metadata.get('lru_tracker', {}).items():
+                for key, value in metadata.get("lru_tracker", {}).items():
                     cache_type, file_path_str, size_bytes, timestamp = value
                     file_path = Path(file_path_str)
 
                     # Verify file still exists
                     if file_path.exists():
-                        self.lru_tracker[key] = (cache_type, file_path, size_bytes, timestamp)
+                        self.lru_tracker[key] = (
+                            cache_type,
+                            file_path,
+                            size_bytes,
+                            timestamp,
+                        )
             except Exception as e:
                 warnings.warn(
                     f"Failed to load cache metadata: {e}. Starting with empty cache.",
-                    RuntimeWarning
+                    RuntimeWarning,
                 )
 
     def _save_metadata(self):
@@ -153,16 +157,21 @@ class CacheManager:
             # Convert LRU tracker to JSON-serializable format
             lru_data = {
                 key: (cache_type, str(file_path), size_bytes, timestamp)
-                for key, (cache_type, file_path, size_bytes, timestamp) in self.lru_tracker.items()
+                for key, (
+                    cache_type,
+                    file_path,
+                    size_bytes,
+                    timestamp,
+                ) in self.lru_tracker.items()
             }
 
             metadata = {
-                'lru_tracker': lru_data,
-                'max_size_bytes': self.max_size_bytes,
-                'max_entries': self.max_entries,
+                "lru_tracker": lru_data,
+                "max_size_bytes": self.max_size_bytes,
+                "max_entries": self.max_entries,
             }
 
-            with open(metadata_path, 'w') as f:
+            with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
         except Exception as e:
             warnings.warn(f"Failed to save cache metadata: {e}", RuntimeWarning)
@@ -182,20 +191,24 @@ class CacheManager:
                 break
 
             # Remove oldest entry (first item in OrderedDict)
-            key, (cache_type, file_path, size_bytes, timestamp) = self.lru_tracker.popitem(last=False)
+            key, (cache_type, file_path, size_bytes, timestamp) = (
+                self.lru_tracker.popitem(last=False)
+            )
 
             # Delete file
             try:
                 if file_path.exists():
                     file_path.unlink()
             except Exception as e:
-                warnings.warn(f"Failed to delete cache file {file_path}: {e}", RuntimeWarning)
+                warnings.warn(
+                    f"Failed to delete cache file {file_path}: {e}", RuntimeWarning
+                )
 
     def save(
         self,
         key: str,
         data: Any,
-        cache_type: str = 'general',
+        cache_type: str = "general",
     ) -> str:
         """
         Save data to cache.
@@ -217,7 +230,7 @@ class CacheManager:
 
         # Serialize data
         try:
-            with open(file_path, 'wb') as f:
+            with open(file_path, "wb") as f:
                 if self.enable_compression:
                     # Use highest protocol for better compression
                     pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -248,7 +261,7 @@ class CacheManager:
     def load(
         self,
         key: str,
-        cache_type: str = 'general',
+        cache_type: str = "general",
     ) -> Optional[Any]:
         """
         Load data from cache.
@@ -271,7 +284,7 @@ class CacheManager:
 
         # Load data
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 data = pickle.load(f)
         except Exception as e:
             warnings.warn(f"Failed to load cache entry: {e}", RuntimeWarning)
@@ -288,7 +301,7 @@ class CacheManager:
     def exists(
         self,
         key: str,
-        cache_type: str = 'general',
+        cache_type: str = "general",
     ) -> bool:
         """
         Check if cache entry exists.
@@ -311,7 +324,7 @@ class CacheManager:
     def delete(
         self,
         key: str,
-        cache_type: str = 'general',
+        cache_type: str = "general",
     ) -> bool:
         """
         Delete cache entry.
@@ -380,7 +393,9 @@ class CacheManager:
                         if file_path.exists():
                             file_path.unlink()
                     except Exception as e:
-                        warnings.warn(f"Failed to delete {file_path}: {e}", RuntimeWarning)
+                        warnings.warn(
+                            f"Failed to delete {file_path}: {e}", RuntimeWarning
+                        )
 
                     self.lru_tracker.pop(key)
 
@@ -416,11 +431,11 @@ class CacheManager:
         newest = max(timestamps) if timestamps else None
 
         return {
-            'num_entries': len(self.lru_tracker),
-            'total_size_mb': total_size / (1024 * 1024),
-            'max_size_mb': self.max_size_bytes / (1024 * 1024),
-            'max_entries': self.max_entries,
-            'entries_by_type': entries_by_type,
-            'oldest_entry': oldest,
-            'newest_entry': newest,
+            "num_entries": len(self.lru_tracker),
+            "total_size_mb": total_size / (1024 * 1024),
+            "max_size_mb": self.max_size_bytes / (1024 * 1024),
+            "max_entries": self.max_entries,
+            "entries_by_type": entries_by_type,
+            "oldest_entry": oldest,
+            "newest_entry": newest,
         }

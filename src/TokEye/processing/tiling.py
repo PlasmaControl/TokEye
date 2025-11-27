@@ -5,9 +5,12 @@ This module provides functions for splitting spectrograms into tiles for
 UNet processing and reconstructing the full prediction from tiled outputs.
 """
 
-import numpy as np
-from typing import List, Dict, Tuple, Optional
 import warnings
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+
+from TokEye.exceptions import InvalidSpectrogramError, TilingError
 
 
 def tile_spectrogram(
@@ -52,15 +55,15 @@ def tile_spectrogram(
         >>> print(tiles[0].shape)  # (256, 256)
     """
     if spectrogram.ndim not in [2, 3]:
-        raise ValueError(
+        raise InvalidSpectrogramError(
             f"Spectrogram must be 2D (H, W) or 3D (C, H, W), got {spectrogram.ndim}D"
         )
 
     if overlap < 0:
-        raise ValueError(f"Overlap must be non-negative, got {overlap}")
+        raise TilingError(f"Overlap must be non-negative, got {overlap}")
 
     if overlap >= tile_size:
-        raise ValueError(
+        raise TilingError(
             f"Overlap ({overlap}) must be less than tile_size ({tile_size})"
         )
 
@@ -73,12 +76,12 @@ def tile_spectrogram(
         num_channels = None
 
     if height != tile_size:
-        raise ValueError(
+        raise TilingError(
             f"Spectrogram height ({height}) must match tile_size ({tile_size})"
         )
 
     if width == 0:
-        raise ValueError("Spectrogram width must be positive")
+        raise TilingError("Spectrogram width must be positive")
 
     # Calculate stride (step size between tiles)
     stride = tile_size - overlap
@@ -98,10 +101,7 @@ def tile_spectrogram(
             pad_width = ((0, 0), (0, padding))
 
         spectrogram_padded = np.pad(
-            spectrogram,
-            pad_width,
-            mode='constant',
-            constant_values=0
+            spectrogram, pad_width, mode="constant", constant_values=0
         )
     else:
         spectrogram_padded = spectrogram
@@ -121,15 +121,15 @@ def tile_spectrogram(
 
     # Create metadata for stitching
     metadata = {
-        'original_width': width,
-        'original_height': height,
-        'tile_size': tile_size,
-        'overlap': overlap,
-        'num_tiles': num_tiles,
-        'padding': padding,
-        'stride': stride,
-        'has_channels': has_channels,
-        'num_channels': num_channels,
+        "original_width": width,
+        "original_height": height,
+        "tile_size": tile_size,
+        "overlap": overlap,
+        "num_tiles": num_tiles,
+        "padding": padding,
+        "stride": stride,
+        "has_channels": has_channels,
+        "num_channels": num_channels,
     }
 
     return tiles, metadata
@@ -165,33 +165,31 @@ def stitch_predictions(
         >>> print(full_prediction.shape)  # (256, 1000)
     """
     if not tiles:
-        raise ValueError("Tiles list cannot be empty")
+        raise TilingError("Tiles list cannot be empty")
 
-    if len(tiles) != metadata['num_tiles']:
-        raise ValueError(
-            f"Number of tiles ({len(tiles)}) doesn't match metadata "
-            f"({metadata['num_tiles']})"
+    if len(tiles) != metadata["num_tiles"]:
+        raise TilingError(
+            f"Number of tiles ({len(tiles)}) doesn't match metadata ({metadata['num_tiles']})"
         )
 
     # Extract metadata
-    tile_size = metadata['tile_size']
-    overlap = metadata['overlap']
-    stride = metadata['stride']
-    original_width = metadata['original_width']
-    original_height = metadata['original_height']
-    has_channels = metadata['has_channels']
-    num_channels = metadata['num_channels']
-    padding = metadata['padding']
+    tile_size = metadata["tile_size"]
+    overlap = metadata["overlap"]
+    stride = metadata["stride"]
+    original_width = metadata["original_width"]
+    original_height = metadata["original_height"]
+    has_channels = metadata["has_channels"]
+    num_channels = metadata["num_channels"]
+    padding = metadata["padding"]
 
     # Validate tile shapes
     expected_shape = (
-        (num_channels, tile_size, tile_size) if has_channels
-        else (tile_size, tile_size)
+        (num_channels, tile_size, tile_size) if has_channels else (tile_size, tile_size)
     )
 
     for i, tile in enumerate(tiles):
         if tile.shape != expected_shape:
-            raise ValueError(
+            raise TilingError(
                 f"Tile {i} has shape {tile.shape}, expected {expected_shape}"
             )
 
@@ -225,7 +223,7 @@ def stitch_predictions(
 
         # Normalize by weight map (average overlapping regions)
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
             output = np.divide(output, weight_map, where=weight_map > 0)
 
     else:
@@ -248,7 +246,8 @@ def stitch_predictions(
 
     # Verify final shape matches original
     expected_final_shape = (
-        (num_channels, original_height, original_width) if has_channels
+        (num_channels, original_height, original_width)
+        if has_channels
         else (original_height, original_width)
     )
 
@@ -256,7 +255,7 @@ def stitch_predictions(
         warnings.warn(
             f"Stitched output shape {output.shape} doesn't match expected "
             f"{expected_final_shape}. This may indicate an issue with tiling.",
-            RuntimeWarning
+            RuntimeWarning,
         )
 
     return output

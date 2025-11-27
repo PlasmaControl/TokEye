@@ -5,9 +5,13 @@ This module provides functions for post-processing model predictions,
 including thresholding, morphological operations, and overlay visualization.
 """
 
-import numpy as np
-from typing import Tuple, Optional, Literal
 import warnings
+from typing import Literal, Optional, Tuple
+
+import cv2
+import numpy as np
+
+from TokEye.exceptions import InvalidMaskError, PostProcessError
 
 
 def apply_threshold(
@@ -36,8 +40,7 @@ def apply_threshold(
     """
     if not 0 <= threshold <= 1:
         warnings.warn(
-            f"Threshold {threshold} is outside typical range [0, 1]",
-            RuntimeWarning
+            f"Threshold {threshold} is outside typical range [0, 1]", RuntimeWarning
         )
 
     if prediction.size == 0:
@@ -77,29 +80,20 @@ def remove_small_objects(
     Raises:
         ValueError: If mask is not 2D
         ValueError: If connectivity is not 4 or 8
-        ImportError: If OpenCV is not available
 
     Example:
         >>> mask = np.random.randint(0, 2, (256, 256), dtype=np.uint8)
         >>> cleaned, num_objects = remove_small_objects(mask, min_size=100)
         >>> print(f"Found {num_objects} objects")
     """
-    try:
-        import cv2
-    except ImportError:
-        raise ImportError(
-            "OpenCV (cv2) is required for connected components analysis. "
-            "Install with: pip install opencv-python"
-        )
-
     if mask.ndim != 2:
-        raise ValueError(f"Mask must be 2D, got {mask.ndim}D")
+        raise InvalidMaskError(f"Mask must be 2D, got {mask.ndim}D")
 
     if connectivity not in [4, 8]:
-        raise ValueError(f"Connectivity must be 4 or 8, got {connectivity}")
+        raise InvalidMaskError(f"Connectivity must be 4 or 8, got {connectivity}")
 
     if min_size < 0:
-        raise ValueError(f"min_size must be non-negative, got {min_size}")
+        raise InvalidMaskError(f"min_size must be non-negative, got {min_size}")
 
     if mask.size == 0:
         return mask.copy(), 0
@@ -113,8 +107,7 @@ def remove_small_objects(
 
     # Find connected components
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-        mask,
-        connectivity=connectivity
+        mask, connectivity=connectivity
     )
 
     # Stats columns: [left, top, width, height, area]
@@ -140,7 +133,7 @@ def remove_small_objects(
 def create_overlay(
     spectrogram: np.ndarray,
     mask: np.ndarray,
-    mode: Literal['white', 'bicolor', 'hsv'] = 'white',
+    mode: Literal["white", "bicolor", "hsv"] = "white",
     alpha: float = 0.5,
     coherent_color: Tuple[int, int, int] = (0, 0, 255),  # Blue in BGR
     transient_color: Tuple[int, int, int] = (0, 255, 0),  # Green in BGR
@@ -166,7 +159,6 @@ def create_overlay(
         ValueError: If shapes don't match
         ValueError: If alpha is not in [0, 1]
         ValueError: If mode is invalid
-        ImportError: If OpenCV is not available
 
     Example:
         >>> spec = np.random.randn(256, 256)
@@ -174,30 +166,25 @@ def create_overlay(
         >>> overlay = create_overlay(spec, mask, mode='white', alpha=0.5)
         >>> print(overlay.shape)  # (256, 256, 3)
     """
-    try:
-        import cv2
-    except ImportError:
-        raise ImportError(
-            "OpenCV (cv2) is required for overlay creation. "
-            "Install with: pip install opencv-python"
-        )
-
     if spectrogram.shape != mask.shape:
-        raise ValueError(
-            f"Spectrogram shape {spectrogram.shape} doesn't match "
-            f"mask shape {mask.shape}"
+        raise PostProcessError(
+            f"Spectrogram shape {spectrogram.shape} doesn't match mask shape {mask.shape}"
         )
 
     if not 0 <= alpha <= 1:
-        raise ValueError(f"Alpha must be in [0, 1], got {alpha}")
+        raise PostProcessError(f"Alpha must be in [0, 1], got {alpha}")
 
-    if mode not in ['white', 'bicolor', 'hsv']:
-        raise ValueError(f"Invalid mode '{mode}', must be 'white', 'bicolor', or 'hsv'")
+    if mode not in ["white", "bicolor", "hsv"]:
+        raise PostProcessError(
+            f"Invalid mode '{mode}', must be 'white', 'bicolor', or 'hsv'"
+        )
 
     # Normalize spectrogram to [0, 255]
     spec_min, spec_max = spectrogram.min(), spectrogram.max()
     if spec_max - spec_min > 1e-10:
-        spec_normalized = ((spectrogram - spec_min) / (spec_max - spec_min) * 255).astype(np.uint8)
+        spec_normalized = (
+            (spectrogram - spec_min) / (spec_max - spec_min) * 255
+        ).astype(np.uint8)
     else:
         spec_normalized = np.zeros_like(spectrogram, dtype=np.uint8)
 
@@ -205,23 +192,22 @@ def create_overlay(
     base_image = cv2.cvtColor(spec_normalized, cv2.COLOR_GRAY2BGR)
 
     # Create overlay based on mode
-    if mode == 'white':
+    if mode == "white":
         # Simple white overlay
         overlay = base_image.copy()
         overlay[mask > 0] = [255, 255, 255]  # White in BGR
 
-    elif mode == 'bicolor':
+    elif mode == "bicolor":
         # Bicolor overlay (requires some heuristic to distinguish coherent/transient)
         # For now, use a simple heuristic: larger components are coherent, smaller are transient
         # This would need to be customized based on actual classification
 
         try:
             num_labels, labels = cv2.connectedComponents(
-                (mask > 0).astype(np.uint8),
-                connectivity=8
+                (mask > 0).astype(np.uint8), connectivity=8
             )
         except Exception as e:
-            raise RuntimeError(f"Connected components analysis failed: {e}")
+            raise PostProcessError(f"Connected components analysis failed: {e}")
 
         overlay = base_image.copy()
 
@@ -236,15 +222,14 @@ def create_overlay(
             else:  # Transient (smaller structures)
                 overlay[component_mask] = transient_color
 
-    elif mode == 'hsv':
+    elif mode == "hsv":
         # HSV mode: assign unique color to each component
         try:
             num_labels, labels = cv2.connectedComponents(
-                (mask > 0).astype(np.uint8),
-                connectivity=8
+                (mask > 0).astype(np.uint8), connectivity=8
             )
         except Exception as e:
-            raise RuntimeError(f"Connected components analysis failed: {e}")
+            raise PostProcessError(f"Connected components analysis failed: {e}")
 
         # Create HSV image
         hsv_image = np.zeros((*spectrogram.shape, 3), dtype=np.uint8)
@@ -298,7 +283,7 @@ def compute_channel_threshold_bounds(
         >>> print(f"Threshold range: [{lower:.3f}, {upper:.3f}]")
     """
     if prediction.ndim != 2:
-        raise ValueError(f"Prediction must be 2D, got {prediction.ndim}D")
+        raise InvalidMaskError(f"Prediction must be 2D, got {prediction.ndim}D")
 
     if prediction.size == 0:
         return 0.0, 1.0
@@ -325,7 +310,9 @@ def compute_channel_threshold_bounds(
 
     # Find upper bound: lowest threshold that covers full object
     # We define "full object" as the pixels that would be detected at minimum threshold
-    full_object_mask = prediction >= pred_min + (pred_max - pred_min) * 0.01  # 1% above minimum
+    full_object_mask = (
+        prediction >= pred_min + (pred_max - pred_min) * 0.01
+    )  # 1% above minimum
 
     upper_bound = pred_max
     for thresh in reversed(thresholds):
@@ -373,23 +360,15 @@ def compute_statistics(
         >>> stats = compute_statistics(mask, min_size=50)
         >>> print(f"Found {stats['num_objects']} objects")
     """
-    try:
-        import cv2
-    except ImportError:
-        raise ImportError(
-            "OpenCV (cv2) is required. Install with: pip install opencv-python"
-        )
-
     if mask.ndim != 2:
-        raise ValueError(f"Mask must be 2D, got {mask.ndim}D")
+        raise InvalidMaskError(f"Mask must be 2D, got {mask.ndim}D")
 
     # Ensure mask is binary uint8
     mask_binary = (mask > 0).astype(np.uint8) * 255
 
     # Find connected components
     num_labels, labels, stats_array, centroids = cv2.connectedComponentsWithStats(
-        mask_binary,
-        connectivity=8
+        mask_binary, connectivity=8
     )
 
     # Extract areas (skip background label 0)
@@ -402,23 +381,23 @@ def compute_statistics(
     # Compute statistics
     if len(areas) > 0:
         statistics = {
-            'num_objects': len(areas),
-            'total_area': int(np.sum(areas)),
-            'mean_area': float(np.mean(areas)),
-            'median_area': float(np.median(areas)),
-            'min_area': int(np.min(areas)),
-            'max_area': int(np.max(areas)),
-            'coverage': float(np.sum(areas) / (mask.shape[0] * mask.shape[1])),
+            "num_objects": len(areas),
+            "total_area": int(np.sum(areas)),
+            "mean_area": float(np.mean(areas)),
+            "median_area": float(np.median(areas)),
+            "min_area": int(np.min(areas)),
+            "max_area": int(np.max(areas)),
+            "coverage": float(np.sum(areas) / (mask.shape[0] * mask.shape[1])),
         }
     else:
         statistics = {
-            'num_objects': 0,
-            'total_area': 0,
-            'mean_area': 0.0,
-            'median_area': 0.0,
-            'min_area': 0,
-            'max_area': 0,
-            'coverage': 0.0,
+            "num_objects": 0,
+            "total_area": 0,
+            "mean_area": 0.0,
+            "median_area": 0.0,
+            "min_area": 0,
+            "max_area": 0,
+            "coverage": 0.0,
         }
 
     return statistics

@@ -5,10 +5,14 @@ This module provides core signal processing transformations for TokEye,
 including preemphasis filtering, STFT computation, and wavelet decomposition.
 """
 
+import warnings
+from typing import Literal, Optional
+
 import numpy as np
 import pywt
-from typing import Literal, Optional
-import warnings
+from scipy import signal as scipy_signal
+
+from TokEye.exceptions import InvalidSignalError, TransformError
 
 
 def apply_preemphasis(signal: np.ndarray, alpha: float = 0.97) -> np.ndarray:
@@ -36,10 +40,10 @@ def apply_preemphasis(signal: np.ndarray, alpha: float = 0.97) -> np.ndarray:
         >>> emphasized = apply_preemphasis(signal, alpha=0.97)
     """
     if not 0 <= alpha <= 1:
-        raise ValueError(f"Alpha must be in range [0, 1], got {alpha}")
+        raise InvalidSignalError(f"Alpha must be in range [0, 1], got {alpha}")
 
     if signal.ndim == 0 or signal.ndim > 2:
-        raise ValueError(f"Signal must be 1D or 2D, got {signal.ndim}D")
+        raise InvalidSignalError(f"Signal must be 1D or 2D, got {signal.ndim}D")
 
     # Handle empty signal
     if signal.size == 0:
@@ -64,7 +68,7 @@ def compute_stft(
     signal: np.ndarray,
     n_fft: int = 1024,
     hop_length: int = 128,
-    window: str = 'hann',
+    window: str = "hann",
     clip_dc: bool = True,
     fs: float = 1.0,
     percentile_low: float = 1.0,
@@ -97,31 +101,22 @@ def compute_stft(
     Raises:
         ValueError: If signal is not 1D
         ValueError: If n_fft or hop_length are invalid
-        ImportError: If scipy is not available
 
     Example:
         >>> signal = np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000))
         >>> spectrogram = compute_stft(signal, n_fft=2048, hop_length=512)
     """
-    try:
-        from scipy import signal as scipy_signal
-    except ImportError:
-        raise ImportError(
-            "scipy is required for STFT computation. "
-            "Install with: pip install scipy"
-        )
-
     if signal.ndim != 1:
-        raise ValueError(f"Signal must be 1D, got {signal.ndim}D")
+        raise InvalidSignalError(f"Signal must be 1D, got {signal.ndim}D")
 
     if n_fft <= 0:
-        raise ValueError(f"n_fft must be positive, got {n_fft}")
+        raise InvalidSignalError(f"n_fft must be positive, got {n_fft}")
 
     if hop_length <= 0:
-        raise ValueError(f"hop_length must be positive, got {hop_length}")
+        raise InvalidSignalError(f"hop_length must be positive, got {hop_length}")
 
     if signal.size == 0:
-        raise ValueError("Cannot compute STFT of empty signal")
+        raise InvalidSignalError("Cannot compute STFT of empty signal")
 
     # Compute STFT
     try:
@@ -133,11 +128,11 @@ def compute_stft(
             noverlap=n_fft - hop_length,
             nfft=n_fft,
             return_onesided=True,
-            boundary='zeros',
+            boundary="zeros",
             padded=True,
         )
     except Exception as e:
-        raise RuntimeError(f"STFT computation failed: {e}")
+        raise TransformError(f"STFT computation failed: {e}")
 
     # Compute magnitude spectrum
     magnitude = np.abs(stft_matrix)
@@ -162,7 +157,7 @@ def compute_stft(
     if std < 1e-10:
         warnings.warn(
             "Standard deviation is near zero, normalization may be unstable",
-            RuntimeWarning
+            RuntimeWarning,
         )
         normalized = result - mean
     else:
@@ -173,10 +168,10 @@ def compute_stft(
 
 def compute_wavelet(
     signal: np.ndarray,
-    wavelet: str = 'db8',
+    wavelet: str = "db8",
     level: int = 9,
-    mode: str = 'sym',
-    order: Literal['natural', 'freq'] = 'freq',
+    mode: str = "symmetric",
+    order: Literal["natural", "freq"] = "freq",
     percentile_low: float = 1.0,
     percentile_high: float = 99.0,
 ) -> np.ndarray:
@@ -194,7 +189,7 @@ def compute_wavelet(
         signal: Input time-domain signal (1D array)
         wavelet: Wavelet name (e.g., 'db8', 'db4', 'haar', 'sym8')
         level: Decomposition level (depth of wavelet tree)
-        mode: Signal extension mode ('sym', 'zero', 'constant', 'periodic', etc.)
+        mode: Signal extension mode ('symmetric', 'zero', 'constant', 'periodic', etc.)
         order: Node ordering ('natural' for tree traversal, 'freq' for frequency order)
         percentile_low: Lower percentile for clipping (default: 1.0)
         percentile_high: Upper percentile for clipping (default: 99.0)
@@ -219,47 +214,45 @@ def compute_wavelet(
         - Higher levels produce more nodes but fewer coefficients per node
     """
     if signal.ndim != 1:
-        raise ValueError(f"Signal must be 1D, got {signal.ndim}D")
+        raise InvalidSignalError(f"Signal must be 1D, got {signal.ndim}D")
 
     if level < 0:
-        raise ValueError(f"Level must be non-negative, got {level}")
+        raise InvalidSignalError(f"Level must be non-negative, got {level}")
 
     if signal.size == 0:
-        raise ValueError("Cannot compute wavelet transform of empty signal")
+        raise InvalidSignalError("Cannot compute wavelet transform of empty signal")
 
     # Verify wavelet is valid
     if wavelet not in pywt.wavelist():
-        raise ValueError(
-            f"Wavelet '{wavelet}' not supported. "
-            f"Available wavelets: {pywt.wavelist()}"
+        raise InvalidSignalError(
+            f"Wavelet '{wavelet}' not supported. Available wavelets: {pywt.wavelist()}"
         )
 
     # Verify mode is valid
     valid_modes = pywt.Modes.modes
     if mode not in valid_modes:
-        raise ValueError(
-            f"Mode '{mode}' not supported. "
-            f"Available modes: {valid_modes}"
+        raise InvalidSignalError(
+            f"Mode '{mode}' not supported. Available modes: {valid_modes}"
         )
 
     # Strict implementation as specified
     try:
         wp = pywt.WaveletPacket(signal, wavelet, mode, maxlevel=level)
     except Exception as e:
-        raise RuntimeError(f"WaveletPacket creation failed: {e}")
+        raise TransformError(f"WaveletPacket creation failed: {e}")
 
     # Get nodes at specified level
     try:
         nodes = wp.get_level(level, order=order)
     except Exception as e:
-        raise RuntimeError(f"Failed to extract level {level} nodes: {e}")
+        raise TransformError(f"Failed to extract level {level} nodes: {e}")
 
     if not nodes:
-        raise RuntimeError(f"No nodes found at level {level}")
+        raise TransformError(f"No nodes found at level {level}")
 
     # Extract labels and values as specified
     labels = [n.path for n in nodes]
-    result = np.array([n.data for n in nodes], dtype='d')
+    result = np.array([n.data for n in nodes], dtype="d")
 
     # Apply log transformation to absolute values
     result = np.log1p(np.abs(result))
@@ -280,9 +273,9 @@ def compute_wavelet(
 
 def compute_wavelet_energy_spectrum(
     signal: np.ndarray,
-    wavelet: str = 'db8',
+    wavelet: str = "db8",
     level: int = 9,
-    mode: str = 'sym',
+    mode: str = "symmetric",
 ) -> np.ndarray:
     """
     Compute energy spectrum from wavelet decomposition.
@@ -304,9 +297,9 @@ def compute_wavelet_energy_spectrum(
         >>> energy = compute_wavelet_energy_spectrum(signal)
         >>> print(energy.shape)  # (512,)
     """
-    coeffs = compute_wavelet(signal, wavelet, level, mode, order='freq')
+    coeffs = compute_wavelet(signal, wavelet, level, mode, order="freq")
 
     # Compute energy per node (sum of squared coefficients)
-    energy = np.sum(coeffs ** 2, axis=1)
+    energy = np.sum(coeffs**2, axis=1)
 
     return energy

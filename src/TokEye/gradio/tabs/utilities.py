@@ -16,6 +16,7 @@ import tempfile
 # Audio Conversion Functions
 # ============================================================================
 
+
 def load_audio_file(audio_file) -> Tuple[Optional[np.ndarray], Optional[int], str]:
     """
     Load audio file and extract waveform.
@@ -60,15 +61,17 @@ def load_audio_file(audio_file) -> Tuple[Optional[np.ndarray], Optional[int], st
         return waveform, sample_rate, info
 
     except ImportError:
-        return None, None, "Error: librosa or soundfile not installed. Install with: pip install librosa soundfile"
+        return (
+            None,
+            None,
+            "Error: librosa or soundfile not installed. Install with: pip install librosa soundfile",
+        )
     except Exception as e:
         return None, None, f"Error loading audio: {str(e)}"
 
 
 def convert_audio_to_npy(
-    waveform: Optional[np.ndarray],
-    sample_rate: Optional[int],
-    normalize: bool = True
+    waveform: Optional[np.ndarray], sample_rate: Optional[int], normalize: bool = True
 ) -> Tuple[Optional[str], str]:
     """
     Convert audio waveform to .npy file.
@@ -96,6 +99,7 @@ def convert_audio_to_npy(
         output_dir.mkdir(exist_ok=True)
 
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = output_dir / f"audio_converted_{timestamp}.npy"
 
@@ -123,7 +127,10 @@ Consider saving as: {filepath.stem}_sr{sample_rate}.npy
 # Audio Recording Functions
 # ============================================================================
 
-def process_recorded_audio(audio_data) -> Tuple[Optional[np.ndarray], Optional[int], str]:
+
+def process_recorded_audio(
+    audio_data,
+) -> Tuple[Optional[np.ndarray], Optional[int], str]:
     """
     Process audio from gr.Audio component.
 
@@ -170,6 +177,7 @@ def process_recorded_audio(audio_data) -> Tuple[Optional[np.ndarray], Optional[i
 # .npy File Inspector
 # ============================================================================
 
+
 def inspect_npy_file(file) -> str:
     """
     Inspect .npy file and display detailed statistics.
@@ -193,7 +201,7 @@ def inspect_npy_file(file) -> str:
 - **Dimensions:** {arr.ndim}D
 - **Data type:** {arr.dtype}
 - **Total elements:** {arr.size:,}
-- **Memory size:** {arr.nbytes / 1024:.2f} KB ({arr.nbytes / (1024*1024):.4f} MB)
+- **Memory size:** {arr.nbytes / 1024:.2f} KB ({arr.nbytes / (1024 * 1024):.4f} MB)
 
 ## Statistical Summary
 - **Min value:** {arr.min():.6f}
@@ -231,6 +239,7 @@ def inspect_npy_file(file) -> str:
 # Batch Conversion
 # ============================================================================
 
+
 def batch_convert_audio_files(files: List) -> Tuple[str, List[str]]:
     """
     Convert multiple audio files to .npy format.
@@ -248,7 +257,10 @@ def batch_convert_audio_files(files: List) -> Tuple[str, List[str]]:
         import librosa
         import soundfile as sf
     except ImportError:
-        return "Error: librosa and soundfile required. Install with: pip install librosa soundfile", []
+        return (
+            "Error: librosa and soundfile required. Install with: pip install librosa soundfile",
+            [],
+        )
 
     output_dir = Path("outputs/batch_conversion")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -261,7 +273,9 @@ def batch_convert_audio_files(files: List) -> Tuple[str, List[str]]:
         try:
             # Load audio
             try:
-                waveform, sample_rate = librosa.load(audio_file.name, sr=None, mono=True)
+                waveform, sample_rate = librosa.load(
+                    audio_file.name, sr=None, mono=True
+                )
             except Exception:
                 waveform, sample_rate = sf.read(audio_file.name)
                 if waveform.ndim > 1:
@@ -311,6 +325,7 @@ def batch_convert_audio_files(files: List) -> Tuple[str, List[str]]:
 # Gradio Interface
 # ============================================================================
 
+
 def utilities_tab():
     """Create the utilities tab interface."""
 
@@ -323,7 +338,9 @@ def utilities_tab():
         # ====================================================================
         with gr.Accordion("Audio File Conversion", open=True):
             gr.Markdown("### Convert Audio Files to NumPy Arrays")
-            gr.Markdown("Upload audio files (.wav, .mp3, .ogg, etc.) and convert to .npy format for analysis.")
+            gr.Markdown(
+                "Upload audio files (.wav, .mp3, .ogg, etc.) and convert to .npy format for analysis."
+            )
 
             # State variables
             audio_waveform_state = gr.State(None)
@@ -332,36 +349,28 @@ def utilities_tab():
             with gr.Row():
                 with gr.Column():
                     audio_file_input = gr.Audio(
-                        label="Upload Audio File",
-                        type="filepath",
-                        sources=["upload"]
+                        label="Upload Audio File", type="filepath", sources=["upload"]
                     )
 
                     load_audio_btn = gr.Button("Load Audio", variant="primary")
 
                     audio_info = gr.Textbox(
-                        label="Audio Information",
-                        lines=10,
-                        interactive=False
+                        label="Audio Information", lines=10, interactive=False
                     )
 
                 with gr.Column():
                     normalize_checkbox = gr.Checkbox(
-                        label="Normalize to [-1, 1]",
-                        value=True
+                        label="Normalize to [-1, 1]", value=True
                     )
 
                     convert_audio_btn = gr.Button("Convert to .npy", variant="primary")
 
                     conversion_status = gr.Textbox(
-                        label="Conversion Status",
-                        lines=10,
-                        interactive=False
+                        label="Conversion Status", lines=10, interactive=False
                     )
 
                     download_npy_file = gr.File(
-                        label="Download Converted File",
-                        interactive=False
+                        label="Download Converted File", interactive=False
                     )
 
         # ====================================================================
@@ -369,7 +378,9 @@ def utilities_tab():
         # ====================================================================
         with gr.Accordion("Audio Recording", open=False):
             gr.Markdown("### Record Audio Directly")
-            gr.Markdown("Record audio using your microphone and convert to .npy format.")
+            gr.Markdown(
+                "Record audio using your microphone and convert to .npy format."
+            )
 
             # State variables
             recorded_waveform_state = gr.State(None)
@@ -378,37 +389,32 @@ def utilities_tab():
             with gr.Row():
                 with gr.Column():
                     audio_recorder = gr.Audio(
-                        label="Record Audio",
-                        sources=["microphone"],
-                        type="numpy"
+                        label="Record Audio", sources=["microphone"], type="numpy"
                     )
 
-                    process_recording_btn = gr.Button("Process Recording", variant="primary")
+                    process_recording_btn = gr.Button(
+                        "Process Recording", variant="primary"
+                    )
 
                     recording_info = gr.Textbox(
-                        label="Recording Information",
-                        lines=6,
-                        interactive=False
+                        label="Recording Information", lines=6, interactive=False
                     )
 
                 with gr.Column():
                     recording_playback = gr.Audio(
-                        label="Playback Preview",
-                        type="numpy",
-                        interactive=False
+                        label="Playback Preview", type="numpy", interactive=False
                     )
 
-                    convert_recording_btn = gr.Button("Convert to .npy", variant="primary")
+                    convert_recording_btn = gr.Button(
+                        "Convert to .npy", variant="primary"
+                    )
 
                     recording_conversion_status = gr.Textbox(
-                        label="Conversion Status",
-                        lines=6,
-                        interactive=False
+                        label="Conversion Status", lines=6, interactive=False
                     )
 
                     download_recording_file = gr.File(
-                        label="Download Converted Recording",
-                        interactive=False
+                        label="Download Converted Recording", interactive=False
                     )
 
         # ====================================================================
@@ -416,13 +422,14 @@ def utilities_tab():
         # ====================================================================
         with gr.Accordion(".npy File Inspector", open=False):
             gr.Markdown("### Inspect NumPy Array Files")
-            gr.Markdown("Upload a .npy file to view detailed statistics and properties.")
+            gr.Markdown(
+                "Upload a .npy file to view detailed statistics and properties."
+            )
 
             with gr.Row():
                 with gr.Column(scale=1):
                     npy_file_input = gr.File(
-                        label="Upload .npy File",
-                        file_types=[".npy"]
+                        label="Upload .npy File", file_types=[".npy"]
                     )
 
                     inspect_btn = gr.Button("Inspect File", variant="primary")
@@ -440,21 +447,17 @@ def utilities_tab():
             batch_files_input = gr.File(
                 label="Upload Audio Files",
                 file_count="multiple",
-                file_types=[".wav", ".mp3", ".ogg", ".flac", ".m4a"]
+                file_types=[".wav", ".mp3", ".ogg", ".flac", ".m4a"],
             )
 
             batch_convert_btn = gr.Button("Convert All Files", variant="primary")
 
             batch_status = gr.Textbox(
-                label="Batch Conversion Status",
-                lines=10,
-                interactive=False
+                label="Batch Conversion Status", lines=10, interactive=False
             )
 
             batch_output_list = gr.File(
-                label="Converted Files",
-                file_count="multiple",
-                interactive=False
+                label="Converted Files", file_count="multiple", interactive=False
             )
 
         # ====================================================================
@@ -465,7 +468,7 @@ def utilities_tab():
         load_audio_btn.click(
             fn=load_audio_file,
             inputs=[audio_file_input],
-            outputs=[audio_waveform_state, audio_sr_state, audio_info]
+            outputs=[audio_waveform_state, audio_sr_state, audio_info],
         )
 
         # Convert audio to .npy
@@ -479,14 +482,14 @@ def utilities_tab():
         convert_audio_btn.click(
             fn=handle_audio_conversion,
             inputs=[audio_waveform_state, audio_sr_state, normalize_checkbox],
-            outputs=[conversion_status, download_npy_file]
+            outputs=[conversion_status, download_npy_file],
         )
 
         # Process recording
         process_recording_btn.click(
             fn=process_recorded_audio,
             inputs=[audio_recorder],
-            outputs=[recorded_waveform_state, recorded_sr_state, recording_info]
+            outputs=[recorded_waveform_state, recorded_sr_state, recording_info],
         )
 
         # Update playback preview when recording is processed
@@ -498,12 +501,14 @@ def utilities_tab():
         process_recording_btn.click(
             fn=update_playback,
             inputs=[recorded_waveform_state, recorded_sr_state],
-            outputs=[recording_playback]
+            outputs=[recording_playback],
         )
 
         # Convert recording to .npy
         def handle_recording_conversion(waveform, sample_rate):
-            filepath, status = convert_audio_to_npy(waveform, sample_rate, normalize=True)
+            filepath, status = convert_audio_to_npy(
+                waveform, sample_rate, normalize=True
+            )
             if filepath:
                 return status, filepath
             else:
@@ -512,14 +517,12 @@ def utilities_tab():
         convert_recording_btn.click(
             fn=handle_recording_conversion,
             inputs=[recorded_waveform_state, recorded_sr_state],
-            outputs=[recording_conversion_status, download_recording_file]
+            outputs=[recording_conversion_status, download_recording_file],
         )
 
         # Inspect .npy file
         inspect_btn.click(
-            fn=inspect_npy_file,
-            inputs=[npy_file_input],
-            outputs=[inspection_output]
+            fn=inspect_npy_file, inputs=[npy_file_input], outputs=[inspection_output]
         )
 
         # Batch conversion
@@ -533,7 +536,7 @@ def utilities_tab():
         batch_convert_btn.click(
             fn=handle_batch_conversion,
             inputs=[batch_files_input],
-            outputs=[batch_status, batch_output_list]
+            outputs=[batch_status, batch_output_list],
         )
 
     return tab

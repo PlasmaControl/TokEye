@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "tokeye"
 version = "0.1.0"
@@ -5,22 +9,72 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "ipykernel",
-    "ipywidgets",
-
-    "numpy",
+    "gradio",
     "matplotlib",
-
+    "numpy",
+    "opencv-python",
     "pywavelets",
     "scipy",
-    "opencv-python",
-
     "torch",
-    "torchvision",
     "torchcodec",
-
-    "gradio",
+    "torchvision",
 ]
+
+[project.optional-dependencies]
+dev = [
+    # Testing & Linting
+    "mypy>=1.8.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.1.0",
+    # Notebook/Interactive tools (Moved from main dependencies)
+    "ipykernel",
+    "ipywidgets",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/TokEye"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.coverage.run]
+source = ["src/TokEye"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/autoprocess/*",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+"tests/*" = ["ARG"]       # Allow unused arguments in tests
 
 [tool.uv]
 package = true
