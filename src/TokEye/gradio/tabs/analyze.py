@@ -5,33 +5,50 @@ This module provides the main analysis interface for processing plasma signals
 through the complete TokEye pipeline: preprocessing, transform, inference, and visualization.
 """
 
-import gradio as gr
-import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, Literal
 import io
+from dataclasses import dataclass
+from pathlib import Path
+
+import gradio as gr
+import matplotlib.pyplot as plt
+import numpy as np
 from PIL import Image
 
 # Import TokEye processing utilities
 from TokEye.processing import (
-    apply_preemphasis,
+    CacheManager,
+    batch_inference,
+    compute_channel_threshold_bounds,
     compute_stft,
     compute_wavelet,
-    tile_spectrogram,
-    stitch_predictions,
-    load_model,
-    batch_inference,
-    apply_threshold,
-    remove_small_objects,
     create_overlay,
     generate_cache_key,
-    CacheManager,
-    compute_channel_threshold_bounds,
+    load_model,
+    remove_small_objects,
+    stitch_predictions,
+    tile_spectrogram,
 )
 
-# Initialize global cache manager
-cache_manager = CacheManager(cache_dir="cache", max_size_mb=1000, max_entries=500)
+
+@dataclass
+class PathConfig:
+    data: Path = Path("data")
+    models: Path = Path("model")
+    outputs: Path = Path("outputs")
+    cache: Path = Path("cache")
+
+    def __post_init__(self):
+        """Ensure directories exist."""
+        for p in [self.outputs, self.cache]:
+            p.mkdir(parents=True, exist_ok=True)
+
+
+PATHS = PathConfig()
+CACHE_MANAGER = CacheManager(
+    cache_dir=str(PATHS.cache),
+    max_size_mb=1000,
+    max_entries=500,
+)
 
 
 def plot_to_image(fig: plt.Figure) -> Image.Image:
@@ -81,9 +98,9 @@ def get_available_signals() -> list:
     return [str(s) for s in signals] if signals else []
 
 
-def load_signal_file(
-    file=None, dropdown_path: str = None
-) -> Tuple[Optional[np.ndarray], str, Optional[Image.Image]]:
+def load_signal(
+    file=None, dropdown_path: str = ""
+) -> tuple[np.ndarray, str, Image.Image | None]:
     """
     Load .npy file and display information.
     Accepts either a file upload or a dropdown path selection.
@@ -114,16 +131,16 @@ def load_signal_file(
 
         # Generate info text
         info = f"""
-**File Information:**
-- Path: {Path(filepath).name}
-- Shape: {signal.shape}
-- Size: {signal.size:,} samples
-- Data type: {signal.dtype}
-- Min: {signal.min():.4f}
-- Max: {signal.max():.4f}
-- Mean: {signal.mean():.4f}
-- Std: {signal.std():.4f}
-"""
+        **File Information:**
+        - Path: {Path(filepath).name}
+        - Shape: {signal.shape}
+        - Size: {signal.size:,} samples
+        - Data type: {signal.dtype}
+        - Min: {signal.min():.4f}
+        - Max: {signal.max():.4f}
+        - Mean: {signal.mean():.4f}
+        - Std: {signal.std():.4f}
+        """
 
         # Plot signal
         plot_img = plot_signal(signal)
@@ -134,39 +151,13 @@ def load_signal_file(
         return None, f"Error loading file: {str(e)}", None
 
 
-def apply_preemphasis_filter(
-    signal: Optional[np.ndarray], enable: bool, alpha: float
-) -> Tuple[Optional[np.ndarray], Optional[Image.Image], str]:
-    """
-    Apply pre-emphasis filter to signal.
-
-    Returns:
-        (filtered_signal, plot_image, status_text)
-    """
-    if signal is None:
-        return None, None, "No signal loaded"
-
-    try:
-        if enable:
-            filtered = apply_preemphasis(signal, alpha=alpha)
-            plot_img = plot_signal(filtered)
-            status = f"Pre-emphasis applied with alpha={alpha}"
-            return filtered, plot_img, status
-        else:
-            plot_img = plot_signal(signal)
-            return signal, plot_img, "Pre-emphasis disabled, using original signal"
-
-    except Exception as e:
-        return None, None, f"Error applying pre-emphasis: {str(e)}"
-
-
 # ============================================================================
 # Section 2: Transform Computation
 # ============================================================================
 
 
 def compute_transform(
-    signal: Optional[np.ndarray],
+    signal: np.ndarray | None,
     transform_type: str,
     # STFT parameters
     n_fft: int,
@@ -179,7 +170,7 @@ def compute_transform(
     # Percentile clipping parameters
     percentile_low: float,
     percentile_high: float,
-) -> Tuple[Optional[np.ndarray], Optional[Image.Image], str]:
+) -> tuple[np.ndarray | None, Image.Image | None, str]:
     """
     Compute STFT or Wavelet transform with caching.
 
@@ -205,7 +196,7 @@ def compute_transform(
             # Check cache
             if cache_manager.exists(cache_key, "spectrogram"):
                 result = cache_manager.load(cache_key, "spectrogram")
-                status = f"Cache hit! STFT loaded from cache."
+                status = "Cache hit! STFT loaded from cache."
             else:
                 # Compute STFT
                 result = compute_stft(
@@ -237,7 +228,7 @@ def compute_transform(
             # Check cache
             if cache_manager.exists(cache_key, "wavelet"):
                 result = cache_manager.load(cache_key, "wavelet")
-                status = f"Cache hit! Wavelet loaded from cache."
+                status = "Cache hit! Wavelet loaded from cache."
             else:
                 # Compute wavelet
                 result = compute_wavelet(
@@ -260,7 +251,7 @@ def compute_transform(
         return None, None, f"Error computing transform: {str(e)}"
 
 
-def save_transform_image(img: Optional[Image.Image]) -> Optional[str]:
+def save_transform_image(img: Image.Image | None) -> str | None:
     """Save transform visualization to file."""
     if img is None:
         gr.Warning("No image to save")
@@ -300,12 +291,12 @@ def get_available_models() -> list:
 
 
 def run_inference(
-    spectrogram: Optional[np.ndarray],
+    spectrogram: np.ndarray | None,
     model_path: str,
     tile_size: int,
     batch_size: int,
     progress=gr.Progress(),
-) -> Tuple[Optional[np.ndarray], str, str]:
+) -> tuple[np.ndarray | None, str, str]:
     """
     Run model inference on spectrogram.
 
@@ -332,7 +323,7 @@ def run_inference(
         # Check cache
         if cache_manager.exists(cache_key, "inference"):
             predictions = cache_manager.load(cache_key, "inference")
-            status = f"Cache hit! Predictions loaded from cache."
+            status = "Cache hit! Predictions loaded from cache."
 
             # Generate output text
             output_text = f"""
@@ -391,7 +382,7 @@ def run_inference(
             elif len(pred_shape) == 2:  # (H, W)
                 metadata["num_channels"] = None
                 metadata["has_channels"] = False
-                print(f"DEBUG: Predictions are 2D (no channel dimension)")
+                print("DEBUG: Predictions are 2D (no channel dimension)")
 
         # Stitch predictions back together
         predictions_full = stitch_predictions(
@@ -448,8 +439,8 @@ def run_inference(
 
 
 def compute_threshold_bounds(
-    predictions: Optional[np.ndarray],
-) -> Tuple[str, Dict[str, Any]]:
+    predictions: np.ndarray | None,
+) -> tuple[str, dict[str, dict[str, float]]]:
     """
     Compute threshold bounds for each channel in predictions.
 
@@ -491,8 +482,8 @@ def compute_threshold_bounds(
 
 
 def generate_visualization(
-    spectrogram: Optional[np.ndarray],
-    predictions: Optional[np.ndarray],
+    spectrogram: np.ndarray | None,
+    predictions: np.ndarray | None,
     ch0_lower: float,
     ch0_upper: float,
     ch1_lower: float,
@@ -500,7 +491,7 @@ def generate_visualization(
     min_obj_size: int,
     overlay_mode: str,
     overlay_alpha: float,
-) -> Tuple[Optional[Image.Image], str]:
+) -> tuple[Image.Image | None, str]:
     """
     Generate final visualization with per-channel threshold overlay.
 
@@ -645,7 +636,7 @@ def generate_visualization(
         return None, f"Error generating visualization: {str(e)}"
 
 
-def save_result_image(img: Optional[Image.Image]) -> Optional[str]:
+def save_result_image(img: Image.Image | None) -> str | None:
     """Save final result visualization to file."""
     if img is None:
         gr.Warning("No image to save")
@@ -677,46 +668,30 @@ def save_result_image(img: Optional[Image.Image]) -> Optional[str]:
 def analyze_tab():
     """Create the analysis tab interface."""
 
-    with gr.Column() as tab:
+    with gr.Column():
         gr.Markdown("# TokEye Analysis Pipeline")
-        gr.Markdown(
-            "Upload a signal file (.npy) and process through the complete analysis pipeline."
-        )
 
         # State variables
-        signal_state = gr.State(None)
-        processed_signal_state = gr.State(None)
-        transform_state = gr.State(None)
-        predictions_state = gr.State(None)
+        state = {
+            "signal": gr.State(None),
+            "transform": gr.State(None),
+            "prediction": gr.State(None),
+        }
 
-        # ====================================================================
-        # Section 1: Input
-        # ====================================================================
-        with gr.Accordion("1. Input Signal", open=True):
+        with gr.Accordion("Input Signal", open=True):
             with gr.Row():
-                with gr.Column(scale=1):
-                    pass  # Empty column for centering
-
-                with gr.Column(scale=2):
-                    with gr.Row():
-                        signal_dropdown = gr.Dropdown(
-                            choices=get_available_signals(),
-                            label="Select Signal from data/",
-                            allow_custom_value=False,
-                        )
-                        refresh_signals_btn = gr.Button("🔄 Refresh")
-
-                    gr.Markdown("Or upload a custom file:")
-                    file_input = gr.File(
-                        label="Upload Signal File (.npy)", file_types=[".npy"]
-                    )
-                    upload_btn = gr.Button("Load File", variant="primary")
-
-                with gr.Column(scale=1):
-                    pass  # Empty column for centering
-
-            with gr.Row():
-                file_info = gr.Markdown("*No file loaded*")
+                signal_dropdown = gr.Dropdown(
+                    choices=get_available_signals(),
+                    label="Select Signal",
+                )
+                refresh_signals_btn = gr.Button("Refresh").click(
+                    fn=lambda: gr.update(choices=get_available_signals()),
+                    outputs=[signal_dropdown],
+                )
+                file_upload = gr.File(
+                    label="Upload Signal File (.npy)", file_types=[".npy"]
+                )
+                upload_btn = gr.Button("Load Signal", variant="primary")
 
             signal_plot = gr.Image(
                 label="Signal Visualization",
@@ -727,107 +702,25 @@ def analyze_tab():
                 sources=[],
             )
 
-            gr.Markdown("### Pre-emphasis Filter")
+        with gr.Accordion("View Time-Frequency", open=True):
             with gr.Row():
-                preemph_enable = gr.Checkbox(label="Enable Pre-emphasis", value=True)
-                preemph_alpha = gr.Slider(
-                    minimum=0.0,
-                    maximum=1.0,
-                    value=0.97,
-                    step=0.01,
-                    label="Alpha coefficient",
+                transform = gr.Radio(
+                    choices=["STFT"], value="STFT", label="Transform Type"
                 )
 
-            apply_preemph_btn = gr.Button("Apply Pre-emphasis")
-            preemph_status = gr.Textbox(label="Status", interactive=False)
-            filtered_plot = gr.Image(
-                label="Processed Signal",
-                type="pil",
-                interactive=False,
-                show_download_button=False,
-                show_share_button=False,
-                sources=[],
-            )
-
-        # ====================================================================
-        # Section 2: Transform
-        # ====================================================================
-        with gr.Accordion("2. Time-Frequency Transform", open=False):
-            transform_type = gr.Radio(
-                choices=["STFT", "Wavelet"], value="STFT", label="Transform Type"
-            )
-
-            # STFT parameters
             with gr.Group(visible=True) as stft_params:
-                gr.Markdown("### STFT Parameters")
-                with gr.Row():
-                    n_fft = gr.Slider(
-                        minimum=256, maximum=4096, value=1024, step=256, label="N_FFT"
-                    )
-                    hop_length = gr.Slider(
-                        minimum=64, maximum=512, value=128, step=64, label="Hop Length"
-                    )
-                clip_dc = gr.Checkbox(label="Clip DC Bin", value=True)
+                n_fft = gr.Slider(256, 2056, 1024, step=256, label="NFFT")
+                hop_length = gr.Slider(64, 512, 128, step=64, label="Hop")
+                no_dc = gr.Checkbox(label="Remove DC Bin", value=True)
 
-            # Wavelet parameters
-            with gr.Group(visible=False) as wavelet_params:
-                gr.Markdown("### Wavelet Parameters")
-                with gr.Row():
-                    wavelet_type = gr.Dropdown(
-                        choices=[f"db{i}" for i in range(1, 21)],
-                        value="db8",
-                        label="Wavelet Type",
-                    )
-                    wavelet_level = gr.Slider(
-                        minimum=1,
-                        maximum=12,
-                        value=9,
-                        step=1,
-                        label="Decomposition Level",
-                    )
-                wavelet_mode = gr.Dropdown(
-                    choices=[
-                        "sym",
-                        "periodic",
-                        "zero",
-                        "constant",
-                        "smooth",
-                        "reflect",
-                    ],
-                    value="sym",
-                    label="Extension Mode",
-                )
+            with gr.Group(visible=True) as process_params:
+                clip_low = gr.Slider(0.0, 100.0, 1.0, label="Clip Low %")
+                clip_high = gr.Slider(0.0, 100.0, 99.0, label="Clip High %")
 
-            # Percentile clipping parameters
-            gr.Markdown("### Percentile Clipping")
-            with gr.Row():
-                percentile_low = gr.Slider(
-                    minimum=0.0,
-                    maximum=10.0,
-                    value=1.0,
-                    step=0.1,
-                    label="Lower Percentile Clip",
-                )
-                percentile_high = gr.Slider(
-                    minimum=90.0,
-                    maximum=100.0,
-                    value=99.0,
-                    step=0.1,
-                    label="Upper Percentile Clip",
-                )
+            calc_btn = gr.Button("Compute Transform", variant="primary")
 
-            compute_transform_btn = gr.Button("Compute Transform", variant="primary")
-
-            transform_plot = gr.Image(
-                label="Transform Visualization",
-                type="pil",
-                interactive=False,
-                show_download_button=False,
-                show_share_button=False,
-                sources=[],
-            )
-            transform_status = gr.Textbox(label="Status", interactive=False)
-
+            transform_plot = gr.Image(label="Visualize", type="pil")
+            transform_status = gr.Textbox(label="Status", show_copy_button=True)
             save_transform_btn = gr.Button("Save Analysis Image")
 
         # ====================================================================
@@ -951,14 +844,14 @@ def analyze_tab():
 
         # Upload file
         upload_btn.click(
-            fn=load_signal_file,
+            fn=load_signal,
             inputs=[file_input, signal_dropdown],
             outputs=[signal_state, file_info, signal_plot],
         )
 
         # Dropdown signal selection
         signal_dropdown.change(
-            fn=load_signal_file,
+            fn=load_signal,
             inputs=[file_input, signal_dropdown],
             outputs=[signal_state, file_info, signal_plot],
         )
@@ -968,13 +861,6 @@ def analyze_tab():
             fn=lambda: gr.update(choices=get_available_signals()),
             inputs=[],
             outputs=[signal_dropdown],
-        )
-
-        # Apply pre-emphasis
-        apply_preemph_btn.click(
-            fn=apply_preemphasis_filter,
-            inputs=[signal_state, preemph_enable, preemph_alpha],
-            outputs=[processed_signal_state, filtered_plot, preemph_status],
         )
 
         # Toggle transform parameters visibility
