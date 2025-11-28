@@ -18,17 +18,20 @@ dependencies = [
     "torch",
     "torchcodec",
     "torchvision",
+    "torchinfo",
+    "scikit-image>=0.25.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     # Testing & Linting
-    "mypy>=1.8.0",
-    "pytest>=8.0.0",
-    "pytest-cov>=4.1.0",
-    "pytest-xdist>=3.5.0",
-    "ruff>=0.1.0",
-    # Notebook/Interactive tools (Moved from main dependencies)
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "ruff",
+
+    # Notebook/Interactive tools
     "ipykernel",
     "ipywidgets",
 ]
@@ -56,25 +59,25 @@ line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "ARG",  # flake8-unused-arguments
-    "SIM",  # flake8-simplify
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "C4",
+    "ARG",
+    "SIM",
 ]
 ignore = [
-    "E501", # line too long (handled by formatter)
-    "B008", # do not perform function calls in argument defaults
+    "E501",
+    "B008",
     ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
-"tests/*" = ["ARG"]       # Allow unused arguments in tests
+"__init__.py" = ["F401"]
+"tests/*" = ["ARG"]
 
 [tool.uv]
 package = true

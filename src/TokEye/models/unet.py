@@ -5,12 +5,14 @@ This module implements a UNet architecture with configurable depth and channels,
 designed for spectrogram segmentation tasks in TokEye.
 """
 
-from typing import List, Tuple
-
 import torch
 import torch.nn as nn
 
-from TokEye.models.modules.nn import ConvBlock, DownBlock, UpBlock
+from .modules.nn import (
+    ConvBlock,
+    DownBlock,
+    UpBlock,
+)
 
 
 class UNet(nn.Module):
@@ -58,7 +60,7 @@ class UNet(nn.Module):
         self.dropout_rate = dropout_rate
 
         # Calculate filter sizes for each layer (doubles at each level)
-        layer_sizes: List[int] = [
+        layer_sizes: list[int] = [
             first_layer_size * 2**i for i in range(self.num_layers)
         ]
 
@@ -70,7 +72,7 @@ class UNet(nn.Module):
         )
 
         # Encoder path (downsampling)
-        encoder: List[DownBlock] = []
+        encoder: list[DownBlock] = []
         for i in range(self.num_layers - 1):
             in_ch = layer_sizes[i]
             out_ch = layer_sizes[i + 1]
@@ -78,7 +80,7 @@ class UNet(nn.Module):
         self.encoder = nn.ModuleList(encoder)
 
         # Decoder path (upsampling)
-        decoder: List[UpBlock] = []
+        decoder: list[UpBlock] = []
         for i in range(self.num_layers - 1):
             in_ch = layer_sizes[-i - 1]
             out_ch = layer_sizes[-i - 2]
@@ -92,7 +94,7 @@ class UNet(nn.Module):
             kernel_size=1,
         )
 
-    def forward(self, in_BCHW: torch.Tensor) -> Tuple[torch.Tensor]:
+    def forward(self, in_BCHW: torch.Tensor) -> tuple[torch.Tensor]:
         """
         Forward pass through the UNet.
 
@@ -110,7 +112,7 @@ class UNet(nn.Module):
             >>> logits, = model(x)
             >>> probabilities = torch.sigmoid(logits)
         """
-        skip_BCHW: List[torch.Tensor] = []
+        skip_BCHW: list[torch.Tensor] = []
 
         # Initial convolution
         encode_BCHW = self.in_conv(in_BCHW)

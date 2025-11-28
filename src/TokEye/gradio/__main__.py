@@ -1,7 +1,5 @@
 """
-TokEye Main Application
-
-Time-series to spectrogram segmentation application for plasma physics analysis.
+TokEye Main Inference
 """
 
 import argparse
@@ -17,7 +15,7 @@ from .tabs.utilities import utilities_tab
 
 # Constants
 DEFAULT_PORT = 7860
-MAX_PORT_ATTEMPTS = 10
+MAX_PORT_ATTEMPTS = 5
 APP_TITLE = "TokEye"
 
 # Set up logging
@@ -26,63 +24,12 @@ logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def setup_theme() -> gr.Theme:
-    theme = gr.themes.Soft(
-        primary_hue="cyan",
-        secondary_hue="teal",
-        neutral_hue="slate",
-        font=gr.themes.GoogleFont("Inter"),
-    )
-    theme.set(
-        button_primary_background_fill="*primary_300",
-        button_primary_background_fill_hover="*primary_400",
-        button_primary_text_color="white",
-        button_secondary_background_fill="*secondary_200",
-        button_secondary_background_fill_hover="*secondary_300",
-        background_fill_primary="#f0f9ff",
-        background_fill_secondary="#e0f2fe",
-        border_color_primary="*primary_200",
-        slider_color="*primary_400",
-        input_background_fill="#ffffff",
-        shadow_drop="0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
-        shadow_drop_lg="0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
-    )
-    return theme
-
-
-def setup_css() -> str:
-    css = """
-    footer {display: none !important}
-    .gradio-container {max-width: 100% !important}
-    /* Additional beachy styling */
-    .gradio-accordion {
-        border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0, 150, 150, 0.1) !important;
-    }
-    .gradio-button {
-        border-radius: 8px !important;
-        transition: all 0.3s ease !important;
-    }
-    .gradio-button:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(0, 150, 150, 0.2) !important;
-    }
-    h1, h2, h3 {
-        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    """
-    return css
-
-
 def check_logo() -> str | None:
     """
     Check if logo exists in assets/ directory.
 
     Returns:
-        (logo_exists, logo_path)
+        logo_path: str | None
     """
     logo_path = Path.cwd() / "assets" / "logo.png"
     if logo_path.exists():
@@ -95,8 +42,7 @@ def create_app() -> gr.Blocks:
     logo_path = check_logo()
     with gr.Blocks(
         title=APP_TITLE,
-        theme=setup_theme(),
-        css=setup_css(),
+        theme=gr.themes.Ocean(),
     ) as app:
         with gr.Row():
             with gr.Column(scale=1):
@@ -129,27 +75,15 @@ def create_app() -> gr.Blocks:
             with gr.Tab("Utilities"):
                 utilities_tab()
 
-        # Footer information
-        gr.Markdown(
-            """
-            ---
-            **TokEye** | nathaniel@princeton.edu
-            """
-        )
-
     return app
 
 
 def parse_args():
-    """Parse command line arguments using argparse."""
-    parser = argparse.ArgumentParser(description="Launch TokEye Application")
-    parser.add_argument(
-        "--port", type=int, default=DEFAULT_PORT, help="Port to run the server on"
-    )
-    parser.add_argument("--share", action="store_true", help="Create a public link")
-    parser.add_argument(
-        "--open", action="store_true", help="Open browser automatically"
-    )
+    """Command line arguments"""
+    parser = argparse.ArgumentParser(description="Launch TokEye")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Server port")
+    parser.add_argument("--share", action="store_true", help="Public link")
+    parser.add_argument("--open", action="store_true", help="Open browser")
     return parser.parse_args()
 
 
@@ -158,7 +92,7 @@ def main():
     args = parse_args()
 
     cwd = Path.cwd()
-    logging.info(f"TokEye initializing in: {cwd}")
+    logging.info(f"Initializing TokEye in: {cwd}")
 
     for directory in ["cache", "outputs", "annotations", "model", "data"]:
         (cwd / directory).mkdir(exist_ok=True)
