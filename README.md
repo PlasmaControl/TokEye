@@ -61,7 +61,7 @@ python -m TokEye.app
 ```
 
 ## Models
-Pre-trained models are available at [this link](https://drive.google.com/drive/folders/1rXllPXB3eWhMvSIlp0CDSFx68lJOQG1u?usp=drive_link].
+Pre-trained models are available at [this link](https://drive.google.com/drive/folders/1rXllPXB3eWhMvSIlp0CDSFx68lJOQG1u?usp=drive_link).
 Copy them into the `models/` directory after downloading them.
 
 ## Data
