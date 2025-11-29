@@ -208,9 +208,11 @@ __marimo__/
 
 # Custom directories
 cache/
-data/
-model/
 outputs/
 
-# AI configuration
-CLAUDE.md
+# Filetypes
+*.ckpt
+*.pt2
+*.pt
+*.npy
+*.zip
