@@ -6,7 +6,8 @@
 
 (This repository is a work in progress. Please check back for updates or reach out to  nathaniel@princeton.edu.)
 
-TokEye is a open-source Python-based application for automatic classification and localization of fluctuating signals. It is designed to be used in the context of plasma physics, but can be used for any type of fluctuating signal.
+TokEye is a open-source Python-based application for automatic classification and localization of fluctuating signals.
+It is designed to be used in the context of plasma physics, but can be used for any type of fluctuating signal.
 
 Check out [this poster from APS DPP 2025](assets/aps_dpp_2025.pdf) for more information.
 
@@ -14,7 +15,7 @@ Check out [this poster from APS DPP 2025](assets/aps_dpp_2025.pdf) for more info
 ![Example Demonstration](assets/example.gif)
 
 Expected processing time:
-- A100: < 0.5 seconds on any size spectrogram
+- A100: < 0.5 seconds on any size spectrogram after warmup.
 - CPU: not yet tested.
 
 ## Verified Datatypes
@@ -26,42 +27,46 @@ Expected processing time:
 With more data, comes better models. Please contribute to the project!
 
 ## Installation
-Installation is meant to be as simple as possible and work across all devices.
 
-containerized installation (recommended) -- not yet available
+[uv](https://docs.astral.sh/uv/) (recommended)
 ```bash
-docker run -it --rm -v $(pwd):/app -w /app ghcr.io/plasma-control/tokeye:latest bash
-```
-
-[uv](https://docs.astral.sh/uv/) -- not yet available
-```bash
-uv add tokeye
-```
-
-pip -- not yet available
-```bash
-pip install tokeye
+git clone git@github.com:PlasmaControl/TokEye.git
+cd TokEye
+uv sync
 ```
 
 pip (from source)
 ```bash
-pip install git+https://github.com/plasma-control/tokeye.git
+git clone git@github.com:PlasmaControl/TokEye.git
+cd TokEye
+python3 -m venv venv
+source venv/bin/activate
+pip install uv
+uv sync
 ```
+
+pip (from PyPI)
+```bash
+pip install tokeye
+```
+Coming soon.
+
+Containerized installation (Docker)
+Coming soon.
+
 
 ## Usage
 ```bash
-tokeye
+python -m TokEye.app
 ```
 
-## Training
-```bash
-tokeye train
-```
+## Models
+Pre-trained models are available at [this link](https://drive.google.com/drive/folders/1rXllPXB3eWhMvSIlp0CDSFx68lJOQG1u?usp=drive_link].
+Copy them into the `models/` directory after downloading them.
 
-## Evaluation
-```bash
-tokeye evaluate
-```
+## Data
+Right now, keep all data as 1d numpy float arrays. No need to normalize or preprocess them.
+Copy them into the `data/` directory.
 
 ## Citation
 If you use this code in your research, please cite:
