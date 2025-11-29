@@ -124,12 +124,10 @@ def analyze_tab():
                     out_1_chk = gr.Checkbox(
                         value=True,
                         label="Coherent Events",
-                        info="🟢",
                     )
                     out_2_chk = gr.Checkbox(
                         value=True,
                         label="Transient Events",
-                        info="🔴",
                     )
             with gr.Group(visible=True) as enhanced_grp, gr.Column():
                 vmin_sld = gr.Slider(0, 100, value=0, step=1, label="% Min Clip")
