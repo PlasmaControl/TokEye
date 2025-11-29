@@ -38,18 +38,7 @@ def on_change_multi(components, fn, inputs, outputs):
 
 
 def analyze_tab():
-    """Create minimal analyze tab with 4-block pipeline."""
-
-    # States
-    model_state = gr.State(None)
-    signal_state = gr.State(None)
-    spectrogram_state = gr.State(None)
-    inference_state = gr.State(None)
-
     with gr.Column():
-        gr.Markdown("# TokEye Analysis Pipeline")
-
-        # Block 1: Load
         with gr.Accordion("1. Load Model & Signal", open=True):
             with gr.Row():
                 with gr.Column():
