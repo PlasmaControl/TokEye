@@ -3,25 +3,16 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+from sympy import Array
 
 from TokEye.processing.postprocess import apply_threshold
 
 logger = logging.getLogger(__name__)
 
 
-def render_original(spectrogram: np.ndarray) -> Image.Image:
-    """Render original spectrogram."""
-    if spectrogram is None:
-        return None
-    fig, ax = plt.subplots(figsize=(8, 4))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower", cmap="viridis")
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Frequency")
-    plt.colorbar(im, ax=ax)
-    plt.tight_layout()
-
+def render_image(fig: plt.Figure) -> Image.Image:
+    """Convert matplotlib figure to PIL Image."""
     fig.canvas.draw()
-    # Convert canvas to numpy array then to PIL Image
     buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
     w, h = fig.canvas.get_width_height()
     img_array = buf.reshape(h, w, 4)
@@ -30,99 +21,130 @@ def render_original(spectrogram: np.ndarray) -> Image.Image:
     return img
 
 
-def render_enhanced(
-    inference: np.ndarray,
+def plot_array(arr: np.ndarray) -> plt.Figure:
+    """Plot array as heatmap using consistent style."""
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.imshow(arr, aspect="auto", origin="lower", cmap="gist_heat")
+    plt.axis("off")
+    plt.tight_layout()
+    return fig
+
+
+def enhance(
+    arr: np.ndarray,
     ch0_enabled: bool,
     ch1_enabled: bool,
     clip_min: float,
     clip_max: float,
-) -> Image.Image:
-    """Render enhanced view with channel overlay."""
-    if inference is None:
-        return None
+) -> np.ndarray:
+    """Create enhanced view with alpha transparency below clip_min.
+
+    Args:
+        arr_extract: 3D array (n_channels, height, width), values in [0, 1]
+        ch0_enabled: Show channel 0 (green)
+        ch1_enabled: Show channel 1 (red)
+        clip_min: Values below this become transparent
+        clip_max: Values above this are clamped
+
+    Returns:
+        RGB array ready for plotting
+    """
+    n_channels, h, w = arr.shape
 
     # Clip values
-    ch0 = np.clip(inference[0], clip_min, clip_max)
-    ch1 = np.clip(inference[1], clip_min, clip_max)
-
-    # Normalize to [0, 1]
-    ch0 = (ch0 - clip_min) / (clip_max - clip_min) if clip_max > clip_min else ch0
-    ch1 = (ch1 - clip_min) / (clip_max - clip_min) if clip_max > clip_min else ch1
+    arr[arr < clip_min / 100] = 0
+    arr[arr > clip_max / 100] = 1
 
     # Create RGB image
-    rgb = np.zeros((*ch0.shape, 3))
+    rgb = np.zeros((h, w, 3), dtype=np.float32)
 
-    if ch0_enabled and ch1_enabled:
-        rgb[:, :, 1] = ch0  # Green
-        rgb[:, :, 0] = ch1  # Red
-    elif ch0_enabled:
-        rgb[:, :, 1] = ch0  # Green
-    elif ch1_enabled:
-        rgb[:, :, 0] = ch1  # Red
+    # Set color channels based on enabled flags
+    if ch0_enabled and n_channels > 0:
+        rgb[:, :, 1] = arr[0]  # Green
+    if ch1_enabled and n_channels > 1:
+        rgb[:, :, 0] = arr[1]  # Red
 
-    rgb = (rgb * 255).astype(np.uint8)
-    return Image.fromarray(rgb)
+    return rgb
 
 
-def render_mask(
-    inference: np.ndarray,
+def mask(
+    arr: np.ndarray,
     ch0_enabled: bool,
     ch1_enabled: bool,
     threshold: float,
-) -> Image.Image:
-    """Render binary mask view."""
-    if inference is None:
-        return None
+) -> np.ndarray:
+    """Create binary mask view.
 
-    # Apply threshold
-    mask_ch0 = apply_threshold(inference[0], threshold, binary=True)
-    mask_ch1 = apply_threshold(inference[1], threshold, binary=True)
+    Args:
+        arr_extract: 3D array (n_channels, height, width), values in [0, 1]
+        ch0_enabled: Show channel 0 (green)
+        ch1_enabled: Show channel 1 (red)
+        threshold: Binary threshold value
+
+    Returns:
+        RGB array ready for plotting
+    """
+    n_channels, h, w = arr.shape
+
+    mask_ch0 = arr[0] > threshold
+    mask_ch1 = arr[1] > threshold
 
     # Create RGB image
-    rgb = np.zeros((*mask_ch0.shape, 3))
+    rgb = np.zeros((h, w, 3), dtype=np.float32)
 
-    if ch0_enabled and ch1_enabled:
+    if ch0_enabled:
         rgb[:, :, 1] = mask_ch0  # Green
-        rgb[:, :, 0] = mask_ch1  # Red
-    elif ch0_enabled:
-        rgb[:, :, 1] = mask_ch0  # Green
-    elif ch1_enabled:
+    if ch1_enabled:
         rgb[:, :, 0] = mask_ch1  # Red
 
-    rgb = (rgb * 255).astype(np.uint8)
-    return Image.fromarray(rgb)
+    return rgb
 
 
 def show_image(
     view_mode: str,
-    signal_transform: np.ndarray,
-    inference_output: np.ndarray,
+    arr: np.ndarray,
+    arr_extract: np.ndarray | None,
     out_1_enabled: bool,
     out_2_enabled: bool,
     vmin: float,
     vmax: float,
     threshold: float,
 ) -> Image.Image | None:
-    """Render visualization based on view mode."""
+    """Render visualization based on view mode.
+
+    Args:
+        view_mode: One of "Original", "Enhanced", or "Mask"
+        arr: 2D array for original view
+        arr_extract: 3D array (n_channels, height, width) for enhanced/mask views
+        out_1_enabled: Enable channel 0 visualization
+        out_2_enabled: Enable channel 1 visualization
+        vmin: Min value for clipping (enhanced view)
+        vmax: Max value for clipping (enhanced view)
+        threshold: Threshold for binary mask (mask view)
+    """
     try:
         if view_mode == "Original":
-            return render_original(signal_transform)
+            display_arr = arr
+
         elif view_mode == "Enhanced":
-            return render_enhanced(
-                inference_output,
-                out_1_enabled,
-                out_2_enabled,
-                vmin,
-                vmax,
-            )
+            if arr_extract is None:
+                logger.warning("No inference data for Enhanced view")
+                return None
+            display_arr = enhance(arr_extract, out_1_enabled, out_2_enabled, vmin, vmax)
+
         elif view_mode == "Mask":
-            return render_mask(
-                inference_output,
-                out_1_enabled,
-                out_2_enabled,
-                threshold,
-            )
-        return None
+            if arr_extract is None:
+                logger.warning("No inference data for Mask view")
+                return None
+            display_arr = mask(arr_extract, out_1_enabled, out_2_enabled, threshold)
+
+        else:
+            logger.error(f"Unknown view mode: {view_mode}")
+            return None
+
+        fig = plot_array(display_arr)
+        return render_image(fig)
+
     except Exception as e:
         logger.error(f"Visualization error: {e}")
         return None

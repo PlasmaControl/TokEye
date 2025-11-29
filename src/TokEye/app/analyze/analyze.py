@@ -122,16 +122,18 @@ def analyze_tab():
                 )
                 with gr.Group():
                     out_1_chk = gr.Checkbox(
-                        value=False,
+                        value=True,
                         label="Coherent Events",
+                        info="🟢",
                     )
                     out_2_chk = gr.Checkbox(
-                        value=False,
+                        value=True,
                         label="Transient Events",
+                        info="🔴",
                     )
             with gr.Group(visible=True) as enhanced_grp, gr.Column():
-                vmin_sld = gr.Slider(0, 100, value=1, step=1, label="% Min Clip")
-                vmax_sld = gr.Slider(0, 100, value=99, step=1, label="% Max Clip")
+                vmin_sld = gr.Slider(0, 100, value=0, step=1, label="% Min Clip")
+                vmax_sld = gr.Slider(0, 100, value=100, step=1, label="% Max Clip")
             with gr.Group(visible=False) as mask_grp, gr.Column():
                 threshold_sld = gr.Slider(0, 1, value=0.5, step=0.01, label="Threshold")
 

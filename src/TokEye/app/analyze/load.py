@@ -43,9 +43,6 @@ def model_load(
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # TODO: remove later, after figuring out how to fix triton issue
-    device = "cpu"
-
     print(f"Loading model: {model_path.name}")
     print(f"Device: {device}")
 
@@ -69,14 +66,14 @@ def model_load(
             module = torch.export.load(str(model_path))
             model = module.module()
             model.to(device)
-            print(f"Model loaded (PyTorch 2.0 export format)")
+            print("Model loaded (PyTorch 2.0 export format)")
         else:
             model = torch.jit.load(
                 str(model_path),
                 map_location=device,
             )
             model.eval()
-            print(f"Model loaded (TorchScript format)")
+            print("Model loaded (TorchScript format)")
     except Exception as e:
         raise RuntimeError(f"Failed to load model: {e}") from e
 
@@ -108,13 +105,17 @@ def model_infer(
     print(f"Running inference on input shape: {inp.shape}")
 
     try:
+        device = next(model.parameters()).device
         inp = (inp - inp.mean()) / inp.std()
         inp_tensor = torch.from_numpy(inp)
         inp_tensor = inp_tensor.unsqueeze(0).unsqueeze(0).float()
+        inp_tensor = inp_tensor.to(device)
 
         with torch.no_grad():
             out_tensor = model(inp_tensor)
 
+        out_tensor = out_tensor[0]
+        out_tensor = torch.sigmoid(out_tensor)
         out_tensor = out_tensor.squeeze(0).squeeze(0).cpu()
         out = out_tensor.numpy()
 
@@ -232,7 +233,7 @@ def load_multi(
             print("Failed to load one or both signals")
             return None
 
-        signal = np.stack([signal_1, signal_1], axis=0)
+        signal = np.stack([signal_1, signal_2], axis=0)
         print(f"Signals loaded: {len(signal_1):,} & {len(signal_2):,} samples")
 
         # Apply STFT to both signals
