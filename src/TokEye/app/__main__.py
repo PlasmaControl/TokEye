@@ -12,6 +12,7 @@ import gradio as gr
 from .analyze.analyze import analyze_tab
 from .tabs.annotate import annotate_tab
 from .tabs.utilities import utilities_tab
+from .utils.theme import make_theme
 
 # Constants
 APP_TITLE = "TokEye"
@@ -22,6 +23,9 @@ MAX_PORT_ATTEMPTS = 10
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+# Current working directory
+cwd = Path.cwd()
+
 
 def create_directories():
     for directory in ["cache", "outputs", "annotations", "model", "data"]:
@@ -29,10 +33,9 @@ def create_directories():
 
 
 def create_app() -> gr.Blocks:
-    theme = gr.themes.Ocean()
     with gr.Blocks(
         title=APP_TITLE,
-        theme=theme,
+        theme=make_theme(),
         css="footer{display:none !important}",
     ) as app:
         gr.Image(
@@ -70,7 +73,6 @@ def launch(app, port):
 
 
 if __name__ == "__main__":
-    cwd = Path.cwd()
     logging.info(f"Initializing TokEye in: {cwd}")
     # Set up
     create_directories()
