@@ -39,7 +39,7 @@ pip (from source)
 ```bash
 git clone git@github.com:PlasmaControl/TokEye.git
 cd TokEye
-python3 -m venv venv
+python3 -m venv .venv
 source venv/bin/activate
 pip install uv
 uv sync
