@@ -1,17 +1,5 @@
-"""
-Post-processing and Visualization Utilities
-
-This module provides functions for post-processing model predictions,
-including thresholding, morphological operations, and overlay visualization.
-"""
-
-import warnings
-from typing import Literal, Optional, Tuple
-
 import cv2
 import numpy as np
-
-from TokEye.exceptions import InvalidMaskError, PostProcessError
 
 
 def apply_threshold(
@@ -39,9 +27,7 @@ def apply_threshold(
         >>> print(np.unique(mask))  # [0, 1]
     """
     if not 0 <= threshold <= 1:
-        warnings.warn(
-            f"Threshold {threshold} is outside typical range [0, 1]", RuntimeWarning
-        )
+        raise ValueError(f"Threshold must be in [0, 1], got {threshold}")
 
     if prediction.size == 0:
         return prediction.copy()
@@ -60,7 +46,7 @@ def remove_small_objects(
     mask: np.ndarray,
     min_size: int = 50,
     connectivity: int = 8,
-) -> Tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, int]:
     """
     Remove small connected components from binary mask.
 
@@ -87,13 +73,13 @@ def remove_small_objects(
         >>> print(f"Found {num_objects} objects")
     """
     if mask.ndim != 2:
-        raise InvalidMaskError(f"Mask must be 2D, got {mask.ndim}D")
+        raise ValueError(f"Mask must be 2D, got {mask.ndim}D")
 
     if connectivity not in [4, 8]:
-        raise InvalidMaskError(f"Connectivity must be 4 or 8, got {connectivity}")
+        raise ValueError(f"Connectivity must be 4 or 8, got {connectivity}")
 
     if min_size < 0:
-        raise InvalidMaskError(f"min_size must be non-negative, got {min_size}")
+        raise ValueError(f"min_size must be non-negative, got {min_size}")
 
     if mask.size == 0:
         return mask.copy(), 0
@@ -133,10 +119,10 @@ def remove_small_objects(
 def create_overlay(
     spectrogram: np.ndarray,
     mask: np.ndarray,
-    mode: Literal["white", "bicolor", "hsv"] = "white",
+    mode: str = "white",
     alpha: float = 0.5,
-    coherent_color: Tuple[int, int, int] = (0, 0, 255),  # Blue in BGR
-    transient_color: Tuple[int, int, int] = (0, 255, 0),  # Green in BGR
+    coherent_color: tuple[int, int, int] = (0, 0, 255),  # Blue in BGR
+    transient_color: tuple[int, int, int] = (0, 255, 0),  # Green in BGR
 ) -> np.ndarray:
     """
     Create visualization overlay of mask on spectrogram.
@@ -167,17 +153,15 @@ def create_overlay(
         >>> print(overlay.shape)  # (256, 256, 3)
     """
     if spectrogram.shape != mask.shape:
-        raise PostProcessError(
+        raise ValueError(
             f"Spectrogram shape {spectrogram.shape} doesn't match mask shape {mask.shape}"
         )
 
     if not 0 <= alpha <= 1:
-        raise PostProcessError(f"Alpha must be in [0, 1], got {alpha}")
+        raise ValueError(f"Alpha must be in [0, 1], got {alpha}")
 
     if mode not in ["white", "bicolor", "hsv"]:
-        raise PostProcessError(
-            f"Invalid mode '{mode}', must be 'white', 'bicolor', or 'hsv'"
-        )
+        raise ValueError(f"Invalid mode '{mode}', must be 'white', 'bicolor', or 'hsv'")
 
     # Normalize spectrogram to [0, 255]
     spec_min, spec_max = spectrogram.min(), spectrogram.max()
@@ -207,7 +191,7 @@ def create_overlay(
                 (mask > 0).astype(np.uint8), connectivity=8
             )
         except Exception as e:
-            raise PostProcessError(f"Connected components analysis failed: {e}")
+            raise RuntimeError(f"Connected components analysis failed: {e}")
 
         overlay = base_image.copy()
 
@@ -229,7 +213,7 @@ def create_overlay(
                 (mask > 0).astype(np.uint8), connectivity=8
             )
         except Exception as e:
-            raise PostProcessError(f"Connected components analysis failed: {e}")
+            raise RuntimeError(f"Connected components analysis failed: {e}")
 
         # Create HSV image
         hsv_image = np.zeros((*spectrogram.shape, 3), dtype=np.uint8)
@@ -263,7 +247,7 @@ def create_overlay(
 def compute_channel_threshold_bounds(
     prediction: np.ndarray,
     num_steps: int = 100,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Compute lower and upper threshold bounds for a single channel prediction.
 
@@ -283,7 +267,7 @@ def compute_channel_threshold_bounds(
         >>> print(f"Threshold range: [{lower:.3f}, {upper:.3f}]")
     """
     if prediction.ndim != 2:
-        raise InvalidMaskError(f"Prediction must be 2D, got {prediction.ndim}D")
+        raise ValueError(f"Prediction must be 2D, got {prediction.ndim}D")
 
     if prediction.size == 0:
         return 0.0, 1.0
@@ -361,7 +345,7 @@ def compute_statistics(
         >>> print(f"Found {stats['num_objects']} objects")
     """
     if mask.ndim != 2:
-        raise InvalidMaskError(f"Mask must be 2D, got {mask.ndim}D")
+        raise ValueError(f"Mask must be 2D, got {mask.ndim}D")
 
     # Ensure mask is binary uint8
     mask_binary = (mask > 0).astype(np.uint8) * 255

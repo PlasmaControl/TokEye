@@ -9,7 +9,7 @@ from pathlib import Path
 import gradio as gr
 
 # Import tabs
-from .tabs.analyze import analyze_tab
+from .analyze.analyze import analyze_tab
 from .tabs.annotate import annotate_tab
 from .tabs.utilities import utilities_tab
 
@@ -37,7 +37,11 @@ def create_app() -> gr.Blocks:
     ) as app:
         gr.Image(
             str(Path.cwd() / "assets" / "logo.png"),
-            height=150,
+            height=300,
+            interactive=False,
+            container=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
         )
         with gr.Tab("Analyze"):
             analyze_tab()

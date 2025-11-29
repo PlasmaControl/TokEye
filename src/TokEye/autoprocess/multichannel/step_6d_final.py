@@ -1,14 +1,10 @@
-import sys
-
-from pathlib import Path
 import shutil
+import sys
+from pathlib import Path
 
 import tifffile as tif
-import numpy as np
-
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import DataLoader, Dataset, Subset
 
 torch.backends.cuda.matmul.fp32_precision = "ieee"
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -23,11 +19,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from .utils.configuration import load_settings
-from .utils.augmentations import get_augmentation
-from .utils.losses import get_loss_function, dice_coefficient, iou_score
-
 from TokEye.models.unet import UNet
+
+from .utils.augmentations import get_augmentation
+from .utils.configuration import load_settings
+from .utils.losses import dice_coefficient, get_loss_function, iou_score
 
 default_settings = {
     # Data and training
@@ -341,7 +337,7 @@ def main(config_path=None):
     n_samples = len(data_files)
 
     logger.info(f"Found {n_samples} data files")
-    logger.info(f"Training final model on all data")
+    logger.info("Training final model on all data")
 
     # Use all data for training (no validation split)
     all_indices = list(range(n_samples))
