@@ -16,7 +16,7 @@ Check out [this poster from APS DPP 2025](assets/aps_dpp_2025.pdf) for more info
 
 Expected processing time:
 - A100: < 0.5 seconds on any size spectrogram after warmup.
-- CPU: not yet tested.
+- CPU: ~5-10 seconds.
 
 ## Verified Datatypes
 - DIII-D Fast Magnetics (cite)
