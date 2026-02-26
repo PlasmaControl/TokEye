@@ -105,4 +105,4 @@ If you use this code in your research, please cite:
 ```
 
 ## Contact
-Please check back for updates or reach out to Nathaniel Chen at nathaniel@princeton.edu.
+Please check back for updates or reach out to Nathaniel Chen at nathaniel [at] princeton [dot] edu.
