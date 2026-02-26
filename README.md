@@ -95,7 +95,7 @@ Copy them into the `data/` directory.
 If you use this code in your research, please cite:
 ```bibtex
 @article{chen_TokEye_2026,
-  title={Fast Spectrogram Event Extraction via Offline Self-Supervised Learning},
+  title={TokEye: Fast Signal Extraction for Fluctuating Time Series via Offline Self-Supervised Learning From Fusion Diagnostics to Bioacoustics},
   author={Chen, Nathaniel},
   year={2026},
   publisher={ArXiv},
