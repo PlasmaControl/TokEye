@@ -2,6 +2,7 @@
 
 import gc
 import multiprocessing as mp
+import os
 import sys
 from collections.abc import Callable, Sequence
 from ctypes import c_ulong
@@ -95,7 +96,11 @@ class ParallelMapper:
         to identity function.
         """
         if nprocs is None:
-            nprocs = mp.cpu_count()
+            # Respect the SLURM/cgroup CPU allocation, not the node's full core
+            # count (mp.cpu_count()) -- oversubscribing cores+memory host-OOM-kills
+            # the job on a shared compute node.
+            slurm = int(os.environ.get("SLURM_CPUS_PER_TASK", 0))
+            nprocs = slurm or len(os.sched_getaffinity(0))
         self.nprocs = nprocs
         self.fetcher = fetcher
         self._counter = Value(c_ulong, 0)

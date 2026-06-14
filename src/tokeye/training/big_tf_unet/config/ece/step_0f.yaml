@@ -1,0 +1,13 @@
+# big_tf_unet early-stage intake (ece).
+shots_path: data/autoprocess/settings/shots.txt
+foundation_dir: data/autoprocess/foundation
+input_key: ece
+input_channels: [8, 12, 16, 20, 24, 28, 32, 36]
+total_channels: 8
+subseq_len: 66000
+preemphasis_coeff: 0.99
+min_samples: 100000
+target_rate_khz: null
+output_dir: data/cache/ece/step_0c_convert_faithdata
+frame_info_path: data/cache/ece/step_0c_convert_faithdata/frame_info.csv
+overwrite: true

@@ -8,10 +8,14 @@ designed for spectrogram segmentation tasks in TokEye.
 import torch
 import torch.nn as nn
 
-from .modules.nn import (
-    ConvBlock,
-    DownBlock,
-    UpBlock,
+from .nn import (
+    TokEyeConvBlock as ConvBlock,
+)
+from .nn import (
+    TokEyeDownBlock as DownBlock,
+)
+from .nn import (
+    TokEyeUpBlock as UpBlock,
 )
 
 

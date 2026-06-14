@@ -1,0 +1,32 @@
+name: tokeye
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.13
+  # Core
+  - numpy
+  - scipy
+  - matplotlib
+  # PyTorch
+  - pytorch::pytorch
+  - pytorch::torchvision
+  # Config / data
+  - omegaconf
+  - pytables
+  - pydantic
+  # Train
+  - ipykernel
+  - ipywidgets
+  - h5py
+  - scikit-learn
+  - scikit-image
+  - pip
+  # Pip-only packages (not on conda or need specific versions)
+  - pip:
+      - gradio
+      - torchcodec
+      - torchinfo
+      - wavio
+      - lightning

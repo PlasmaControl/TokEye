@@ -1,0 +1,7 @@
+baseline_method: fabc
+baseline_method_kwargs:
+  lam: 100000.0
+input_dir: data/cache/ece/step_2a_make_spectrogram
+output_dir: data/cache/ece/step_2b_filter_spectrogram
+output_baseline_dir: data/cache/ece/step_2b_filter_spectrogram_baseline
+overwrite: true

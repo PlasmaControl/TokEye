@@ -34,3 +34,18 @@ jobs:
       - name: Test with pytest
         run: |
           uv run pytest
+
+  large-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject files larger than 10 MB
+        run: |
+          limit=$((10 * 1024 * 1024))
+          big=$(git ls-tree -r -l HEAD | awk -v lim="$limit" '$4 > lim {printf "  %.1f MB  %s\n", $4/1048576, $5}')
+          if [ -n "$big" ]; then
+            echo "::error::Files larger than 10 MB are not allowed (use Git LFS or external hosting):"
+            echo "$big"
+            exit 1
+          fi
+          echo "OK: no tracked file exceeds 10 MB."

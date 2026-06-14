@@ -1,0 +1,11 @@
+# Pre-commit hooks. Enable once per clone with:
+#     uv run pre-commit install
+# Currently guards against committing large files -- the repo history was once
+# bloated to 67 GB by accidentally-committed multi-GB data files. CI re-checks
+# this on every PR to main (.github/workflows/python-package.yml).
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=10240]  # 10 MB; all legitimate tracked assets are < 8 MB

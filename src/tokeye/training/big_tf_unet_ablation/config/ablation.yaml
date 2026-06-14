@@ -1,0 +1,104 @@
+# Ablation pipeline config — single source of truth.
+stft: { nfft: 1024, hop_length: 128 }
+
+# All 4 DIII-D fluctuation diagnostics (the paper's full set), loaded from the
+# locally-preserved single-shot raw_fast files via step_0g. Channel selections and
+# their 0-based indexing match the original/multiscale recipe (mhr [3,4,5,6] -> B4-B7
+# of the B1-B8 high-resolution magnetics; co2 = all 4 BCI chords).
+modalities:
+  ece: { input_key: ece, channels: [8, 12, 16, 20, 24, 28, 32, 36] }
+  mhr: { input_key: mhr, channels: [3, 4, 5, 6] }
+  bes: { input_key: bes, channels: [26, 28, 30, 32, 34, 36, 38, 40] }
+  # co2 DISABLED 2026-05-30: the co2 top-up data is all-zero for every shot/chord
+  # (correct structure/rate/length, but empty values -> 0 windows survive step_2f,
+  # which would crash step_3a). Re-enable once co2 is re-fetched with real signal.
+  # co2: { input_key: co2, channels: [0, 1, 2, 3] }
+
+extraction:
+  subseq_len: 66000
+  preemphasis_coeff: 0.99
+  fs_khz: 500
+  target_rate_khz: 500   # step_0g resamples every modality to this (ece 1x, mhr 4x, bes 2x, co2 ~10/3x)
+  ip_threshold: 0.1
+  max_windows_per_shot_precap: 60   # generous cap before STFT (bounds step_2a work)
+
+window_filter:
+  enabled: true
+  weights: /scratch/gpfs/nc1514/aemodes/model/big_mode_v1-5_weights.pt
+  weights_fallback: model/big_tf_unet_251210_weights.pt
+  max_windows_per_shot: 25
+  activity_threshold: 0.5      # sigmoid cutoff for "active" pixel
+  min_activity: 0.0005         # min active-pixel fraction; drop near-empty windows
+  # Normalization is computed PER MODALITY from each diagnostic's own
+  # log-magnitude stats ("auto"); each diagnostic has a distinct intensity scale
+  # and 1/f structure, so a single global mean/std mis-normalizes the others.
+  mean: auto
+  std: auto
+
+baseline:
+  enabled: true                # << toggled per variant
+  method: fabc
+  method_kwargs: { lam: 1.0e6 }   # 1e5 under-fits: leaves ~21x low-freq residual on ece (washes out correlation); 1e6 -> 2.6x. mhr/co2 unaffected.
+  bin_cutting: auto
+  gradient_threshold: 0.5
+
+correlation:
+  enabled: true                # << toggled per variant (denoise on/off)
+  representation: complex      # << complex | magnitude  (toggled per variant)
+  # NB: total_channels / adjacent_channels are derived per-modality by the
+  # orchestrator (do NOT set them here or they clobber the modality values).
+  first_layer_size: 32
+  num_layers: 5
+  clamp_range: auto
+  clamp_percentiles: [1, 99]
+  bin_masking: auto
+  # fp32 (no bf16) per request. fp32 activations are ~2x bf16, and the complex
+  # variants already OOM'd a 40GB A100 at batch 36 in bf16, so the batch must
+  # drop hard to fit fp32. 8 is conservative-safe; can be raised once we see the
+  # actual fp32 memory headroom.
+  batch_size: 8
+  precision: "32-true"
+  max_epochs: 30
+  tv_patience: 3
+
+threshold:
+  min_size: auto
+  min_size_fraction: 0.0002
+  remove_bottom_rows: auto
+  remove_top_rows: auto
+  row_removal_fraction_bottom: 0.01
+  row_removal_fraction_top: 0.004
+
+# refiner/final: fp32 (no bf16). final.batch raised 16 -> 28: nodenoise's step_6d ran at 16.8GB/40
+# (42%) at batch 16, so 28 (~29GB, ~73%) fills the GPU memory with margin (efficiency target: keep
+# GPU mem near 100%). refiner left at 16 (its fp32 memory isn't measured yet; bump once this
+# recovery run's jobstats shows step_6b headroom). step_3a/correlation stays 8 (complex OOM ceiling).
+refiner: { first_layer_size: 32, num_layers: 5, batch_size: 16, precision: "32-true", max_epochs: 200, n_folds: 5, loss_type: symmetric_bce_dice, mc_dropout_samples: 15 }
+final:   { first_layer_size: 32, num_layers: 5, batch_size: 28, precision: "32-true", max_epochs: 100, n_folds: 5, loss_type: focal, gamma: 2.0 }
+
+variants:
+  - { id: full,       baseline: true,  denoise: true,  representation: complex }
+  - { id: mag,        baseline: true,  denoise: true,  representation: magnitude }
+  - { id: nobaseline, baseline: false, denoise: true,  representation: complex }
+  - { id: nodenoise,  baseline: true,  denoise: false, representation: complex }
+
+paths:
+  # Full original training set (23 shots), preserved locally as single-shot files
+  # (data/autoprocess/raw_fast/{shot}.h5, all 4 modalities) and loaded via step_0g.
+  shots_path: data/autoprocess/settings/shots.txt
+  raw_fast_dir: data/autoprocess/raw_fast
+  cache_dir: data/cache/ablation
+  model_dir: model/ablation
+  task_matrix_path: data/cache/ablation/task_matrix.json
+
+cleanup:
+  enabled: true
+  # step_6b (the ~280GB refiner all_folds_predictions.h5) is now DELETED after
+  # step_6d: it is only a transient input to step_6c, and eval reads step_6d's
+  # final.torchscript.pt (not this h5). Keeping it for all 4 variants (~1.1TB)
+  # blew the 3TB scratch quota and crashed step_6c mid-write. step_6c tifs are
+  # kept (small, ~31GB) for inspection.
+  keep_steps: [step_6a, step_6c, step_6d]
+  delete_steps: [step_0c, step_2a, step_2b, step_2b_baseline, step_3a, step_3b, step_4a_threshold, step_4a_threshold_baseline, step_5a, step_6b]
+
+smoke: { enabled: false, n_shots: 2, max_windows_per_shot: 2, n_folds: 2, max_epochs: 1, refiner_max_epochs: 1, final_max_epochs: 1 }

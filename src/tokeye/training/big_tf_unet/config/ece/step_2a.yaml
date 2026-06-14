@@ -1,0 +1,6 @@
+nfft: 1024
+hop_length: 128
+input_dir: data/cache/ece/step_1a_make_timeseries
+output_dir: data/cache/ece/step_2a_make_spectrogram
+overwrite: true
+make_original: false

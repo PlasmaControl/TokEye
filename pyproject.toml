@@ -10,23 +10,19 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "gradio",
-
     "numpy",
     "scipy",
-
     "matplotlib",
-
     "torch",
     "torchcodec",
     "torchvision",
     "torchinfo",
-
     "omegaconf",
     "tables",
     "pydantic",
 ]
 
-[pytest]
+[tool.pytest.ini_options]
 minversion = "9.0"
 addopts = ["-ra", "-q"]
 testpaths = [
@@ -55,11 +51,16 @@ train = [
 
     "h5py",
     "wavio",
+    "joblib",
 
     "lightning",
+    "torchaudio",
+    "torchmetrics",
 
     "scikit-learn",
     "scikit-image",
 
-    "fusionaihub",
+    "pybaselines",
+    "tifffile",
+    "pandas",
 ]

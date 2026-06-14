@@ -7,9 +7,10 @@ import lightning as L
 import torch
 import torch.nn as nn
 from lightning.pytorch.callbacks import Callback
-from TokEye.models.unet import UNet
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.image import TotalVariation
+
+from tokeye.models.modules.unet import UNet
 
 from .utils.configuration import (
     load_settings,

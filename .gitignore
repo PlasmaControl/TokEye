@@ -207,12 +207,14 @@ marimo/_lsp/
 __marimo__/
 
 # Custom directories
+.tmp/
 cache/
 outputs/
 data/
 dev/
 logs/
 lightning_logs/
+output/
 
 # Filetypes
 *.npy

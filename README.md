@@ -12,10 +12,10 @@ It is designed to be used in the context of plasma physics, but can be used for 
 Check out [this poster from APS DPP 2025](assets/aps_dpp_2025.pdf) or [this preprint](https://arxiv.org/abs/2602.20317) for more information.
 
 ## Example Demonstration
-![Example Demonstration](assets/example.gif)
+<video src="assets/example.webm" controls loop muted playsinline width="100%"></video>
 
 Expected processing time:
-- A100: < 0.5 seconds on any size spectrogram after warmup.
+- V100: < 0.5 seconds on any size spectrogram after warmup.
 - CPU: ~5-10 seconds.
 
 ## Verified Datatypes

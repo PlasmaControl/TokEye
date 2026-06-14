@@ -1,0 +1,14 @@
+# big_tf_unet early-stage intake (mhr). mhr has only 8 channels (B1..B8),
+# so input_channels must stay within [0, 7].
+shots_path: data/autoprocess/settings/shots.txt
+foundation_dir: data/autoprocess/foundation
+input_key: mhr
+input_channels: [3, 4, 5, 6]
+total_channels: 4
+subseq_len: 66000
+preemphasis_coeff: 0.99
+min_samples: 100000
+target_rate_khz: null
+output_dir: data/cache/mhr/step_0c_convert_faithdata
+frame_info_path: data/cache/mhr/step_0c_convert_faithdata/frame_info.csv
+overwrite: true

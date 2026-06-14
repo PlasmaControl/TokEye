@@ -1,0 +1,144 @@
+stft:
+  nfft: 1024
+  hop_length: 128
+modalities:
+  ece:
+    input_key: ece
+    channels:
+    - 8
+    - 12
+    - 16
+    - 20
+    - 24
+    - 28
+    - 32
+    - 36
+  mhr:
+    input_key: mhr
+    channels:
+    - 3
+    - 4
+    - 5
+    - 6
+  bes:
+    input_key: bes
+    channels:
+    - 26
+    - 28
+    - 30
+    - 32
+    - 34
+    - 36
+    - 38
+    - 40
+extraction:
+  subseq_len: 66000
+  preemphasis_coeff: 0.99
+  fs_khz: 500
+  target_rate_khz: 500
+  ip_threshold: 0.1
+  max_windows_per_shot_precap: 60
+window_filter:
+  enabled: true
+  weights: /scratch/gpfs/nc1514/aemodes/model/big_mode_v1-5_weights.pt
+  weights_fallback: model/big_tf_unet_251210_weights.pt
+  max_windows_per_shot: 25
+  activity_threshold: 0.5
+  min_activity: 0.0005
+  mean: auto
+  std: auto
+baseline:
+  enabled: true
+  method: fabc
+  method_kwargs:
+    lam: 1.0e6
+  bin_cutting: auto
+  gradient_threshold: 0.5
+correlation:
+  enabled: true
+  representation: complex
+  first_layer_size: 32
+  num_layers: 5
+  clamp_range: auto
+  clamp_percentiles:
+  - 1
+  - 99
+  bin_masking: auto
+  batch_size: 8
+  precision: 32-true
+  max_epochs: 30
+  tv_patience: 3
+  normalization: robust_asinh
+threshold:
+  min_size: auto
+  min_size_fraction: 0.0002
+  remove_bottom_rows: auto
+  remove_top_rows: auto
+  row_removal_fraction_bottom: 0.01
+  row_removal_fraction_top: 0.004
+refiner:
+  first_layer_size: 32
+  num_layers: 5
+  batch_size: 16
+  precision: 32-true
+  max_epochs: 200
+  n_folds: 5
+  loss_type: symmetric_bce_dice
+  mc_dropout_samples: 15
+final:
+  first_layer_size: 32
+  num_layers: 5
+  batch_size: 28
+  precision: 32-true
+  max_epochs: 100
+  n_folds: 5
+  loss_type: focal
+  gamma: 2.0
+variants:
+- id: full
+  baseline: true
+  denoise: true
+  representation: complex
+- id: mag
+  baseline: true
+  denoise: true
+  representation: magnitude
+- id: nobaseline
+  baseline: false
+  denoise: true
+  representation: complex
+- id: nodenoise
+  baseline: true
+  denoise: false
+  representation: complex
+paths:
+  shots_path: data/autoprocess/settings/shots.txt
+  raw_fast_dir: data/autoprocess/raw_fast
+  cache_dir: data/cache/ablation_robust
+  model_dir: model/ablation_robust
+  task_matrix_path: data/cache/ablation_robust/task_matrix.json
+cleanup:
+  enabled: true
+  keep_steps:
+  - step_6a
+  - step_6c
+  - step_6d
+  delete_steps:
+  - step_0c
+  - step_2a
+  - step_2b
+  - step_2b_baseline
+  - step_3a
+  - step_3b
+  - step_4a_threshold
+  - step_4a_threshold_baseline
+  - step_5a
+  - step_6b
+smoke:
+  enabled: false
+  n_shots: 2
+  max_windows_per_shot: 2
+  n_folds: 2
+  max_epochs: 1
+  refiner_max_epochs: 1
+  final_max_epochs: 1

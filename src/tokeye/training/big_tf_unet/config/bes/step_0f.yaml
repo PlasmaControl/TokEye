@@ -1,0 +1,15 @@
+# big_tf_unet early-stage intake (bes). Run from the repo root:
+#   python -m tokeye.training.big_tf_unet.step_0f_foundation \
+#     src/tokeye/training/big_tf_unet/config/bes/step_0f.yaml
+shots_path: data/autoprocess/settings/shots.txt
+foundation_dir: data/autoprocess/foundation
+input_key: bes
+input_channels: [26, 28, 30, 32, 34, 36, 38, 40]
+total_channels: 8
+subseq_len: 66000
+preemphasis_coeff: 0.99
+min_samples: 100000
+target_rate_khz: null   # files are already 500 kHz; set 500 to force-resample
+output_dir: data/cache/bes/step_0c_convert_faithdata
+frame_info_path: data/cache/bes/step_0c_convert_faithdata/frame_info.csv
+overwrite: true
