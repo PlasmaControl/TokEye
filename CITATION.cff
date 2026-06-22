@@ -7,6 +7,7 @@ message: >-
   metadata from this file.
 version: 0.9.5
 date-released: 2026-06-21
+doi: 10.5281/zenodo.20791110
 authors:
   - given-names: Nathaniel
     family-names: Chen
