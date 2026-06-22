@@ -2723,6 +2723,23 @@ dependencies = [
     { name = "torchvision" },
 ]
 
+[package.optional-dependencies]
+train = [
+    { name = "h5py" },
+    { name = "ipykernel" },
+    { name = "ipywidgets" },
+    { name = "joblib" },
+    { name = "lightning" },
+    { name = "pandas" },
+    { name = "pybaselines" },
+    { name = "scikit-image" },
+    { name = "scikit-learn" },
+    { name = "tifffile" },
+    { name = "torchaudio" },
+    { name = "torchmetrics" },
+    { name = "wavio" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pre-commit" },
@@ -2751,17 +2768,31 @@ train = [
 [package.metadata]
 requires-dist = [
     { name = "gradio" },
+    { name = "h5py", marker = "extra == 'train'" },
+    { name = "ipykernel", marker = "extra == 'train'" },
+    { name = "ipywidgets", marker = "extra == 'train'" },
+    { name = "joblib", marker = "extra == 'train'" },
+    { name = "lightning", marker = "extra == 'train'" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "omegaconf" },
+    { name = "pandas", marker = "extra == 'train'" },
+    { name = "pybaselines", marker = "extra == 'train'" },
     { name = "pydantic" },
+    { name = "scikit-image", marker = "extra == 'train'" },
+    { name = "scikit-learn", marker = "extra == 'train'" },
     { name = "scipy" },
     { name = "tables" },
+    { name = "tifffile", marker = "extra == 'train'" },
     { name = "torch" },
+    { name = "torchaudio", marker = "extra == 'train'" },
     { name = "torchcodec" },
     { name = "torchinfo" },
+    { name = "torchmetrics", marker = "extra == 'train'" },
     { name = "torchvision" },
+    { name = "wavio", marker = "extra == 'train'" },
 ]
+provides-extras = ["train"]
 
 [package.metadata.requires-dev]
 dev = [
