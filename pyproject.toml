@@ -22,6 +22,26 @@ dependencies = [
     "pydantic",
 ]
 
+[project.optional-dependencies]
+# Mirror of the `train` dependency-group so consumers can `pip install tokeye[train]`.
+# The training/ablation pipeline modules (src/tokeye/training/) import these; the
+# core package and the Gradio app do not require them.
+train = [
+    "ipykernel",
+    "ipywidgets",
+    "h5py",
+    "wavio",
+    "joblib",
+    "lightning",
+    "torchaudio",
+    "torchmetrics",
+    "scikit-learn",
+    "scikit-image",
+    "pybaselines",
+    "tifffile",
+    "pandas",
+]
+
 [tool.pytest.ini_options]
 minversion = "9.0"
 addopts = ["-ra", "-q"]

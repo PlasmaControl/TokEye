@@ -33,8 +33,9 @@ PER VARIANT (per modality 2b-4a, then combined 6a-6d):
   step_4a transient threshold( step_2b_baseline )
   step_6a -> dual-mask TIF [ch0=coherent, ch1=transient], per-modality stats
   step_6b refiner (n-fold) -> step_6c refined labels -> step_6d 5-fold final
-EVAL: scripts/eval/TJII2021_ablation.py -> across-fold + image-bootstrap CSV
-      scripts/eval/tjii_ablation_figure.py -> figure + LaTeX table
+EVAL: dev/paper/eval/TJII2021_ablation.py -> across-fold + image-bootstrap CSV
+      dev/paper/eval/tjii_ablation_figure.py -> figure + LaTeX table
+      (paper eval/figure code lives under dev/paper/, outside the package)
 ```
 
 ## Launch (SLURM)
