@@ -1,14 +1,13 @@
-import tifffile as tif
-
-from pathlib import Path
 import shutil
+from pathlib import Path
 
+import tifffile as tif
 import torch
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+from aemodes.utils.dataset import load_dataset
 from tqdm.auto import tqdm
 
-from aemodes.utils.dataset import load_dataset
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 default_settings = {
     "mean": 0.0523,
@@ -46,11 +45,11 @@ def make_semantic(model, dataset, settings, mode='train'):
 
             # save overlap
             tif.imwrite(
-                f"{settings['output_path']}/input/{idx}_{i}_{mode}.tif", 
+                f"{settings['output_path']}/input/{idx}_{i}_{mode}.tif",
                 inp_array
                 )
             tif.imwrite(
-                f"{settings['output_path']}/label/{idx}_{i}_{mode}.tif", 
+                f"{settings['output_path']}/label/{idx}_{i}_{mode}.tif",
                 out_array
                 )
 
@@ -71,8 +70,8 @@ if __name__ == '__main__':
 
     # load model
     model = torch.load(
-        settings['model_path'], 
-        weights_only=False, 
+        settings['model_path'],
+        weights_only=False,
         map_location=device
     )
     model.eval()
@@ -82,7 +81,7 @@ if __name__ == '__main__':
     train_dataset, valid_dataset = load_dataset(
         settings['data_path']
         )
-    
+
     # make semantic
     make_semantic(model, train_dataset, settings, mode='train')
     make_semantic(model, valid_dataset, settings, mode='valid')

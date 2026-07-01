@@ -1,7 +1,6 @@
 import torch
 from ultralytics import YOLO
 
-
 default_settings = {
     'data_path': 'data/.cache/step_3_yolo/data.yaml',
     'model_save_path': 'model/yolo',
@@ -15,15 +14,15 @@ default_settings = {
 
 def train_yolo_detection(settings=None):
     """Train YOLOv8 for object detection."""
-    
+
     if settings is None:
         settings = default_settings
-    
+
     # Load pretrained model
     model = YOLO(f'yolov8{settings["model_size"]}.pt')
-    
+
     # Train
-    results = model.train(
+    model.train(
         data=settings['data_path'],
         epochs=settings['num_epochs'],
         batch=settings['batch_size'],
@@ -37,24 +36,24 @@ def train_yolo_detection(settings=None):
         save=True,
         plots=True,
     )
-    
+
     print(f"Detection training completed. Model saved to {settings['model_save_path']}/detect")
     return model
 
 
 def train_yolo_segmentation(settings=None):
     """Train YOLOv8 for instance segmentation."""
-    
+
     if settings is None:
         settings = default_settings
-    
+
     from ultralytics import YOLO
-    
+
     # Load pretrained segmentation model
     model = YOLO(f'yolov8{settings["model_size"]}-seg.pt')
-    
+
     # Train
-    results = model.train(
+    model.train(
         data=settings['data_path'],
         epochs=settings['num_epochs'],
         batch=settings['batch_size'],
@@ -68,7 +67,7 @@ def train_yolo_segmentation(settings=None):
         save=True,
         plots=True,
     )
-    
+
     print(f"Segmentation training completed. Model saved to {settings['model_save_path']}/segment")
     return model
 
@@ -76,25 +75,25 @@ def train_yolo_segmentation(settings=None):
 def train_yolo(settings=None, task='both'):
     """
     Train YOLOv8 models.
-    
+
     Args:
         settings: Training settings dictionary
         task: 'detect', 'segment', or 'both'
     """
-    
+
     if settings is None:
         settings = default_settings
-    
+
     models = {}
-    
+
     if task in ('detect', 'both'):
         print("Training YOLOv8 Detection...")
         models['detect'] = train_yolo_detection(settings)
-    
+
     if task in ('segment', 'both'):
         print("Training YOLOv8 Segmentation...")
         models['segment'] = train_yolo_segmentation(settings)
-    
+
     return models
 
 

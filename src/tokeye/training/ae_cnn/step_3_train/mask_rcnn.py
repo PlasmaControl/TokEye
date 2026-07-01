@@ -1,13 +1,10 @@
 from pathlib import Path
 
-import torch
-
 import lightning as L
-from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-
+import torch
 from aemodes.models.instance.mask_rcnn import build_model
-
 from aemodes.utils.dataset import COCODataModule
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 
 torch.set_float32_matmul_precision('high')
 
@@ -26,46 +23,46 @@ default_settings = {
 
 class MaskRCNNModule(L.LightningModule):
     """Lightning module for Mask R-CNN training."""
-    
+
     def __init__(self, num_classes=2, learning_rate=0.005):
         super().__init__()
         self.save_hyperparameters()
         self.learning_rate = learning_rate
-        
+
         self.model = build_model(num_classes=num_classes)
-    
+
     def forward(self, images, targets=None):
         return self.model(images, targets)
-    
+
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         images, targets = batch
         images = list(images)
-        targets = [{k: v for k, v in t.items()} for t in targets]
-        
+        targets = [dict(t.items()) for t in targets]
+
         # Model returns loss dict during training
         loss_dict = self.model(images, targets)
         total_loss = torch.stack(list(loss_dict.values())).sum()
-        
+
         self.log(
-            'train_loss', total_loss, 
+            'train_loss', total_loss,
             on_step=True, on_epoch=True, prog_bar=False,
             sync_dist=True, batch_size=len(images),
         )
-        
+
         return total_loss
-    
+
     def validation_step(self, batch, batch_idx):
         images, targets = batch
         images = list(images)
-        
+
         # Get predictions
         predictions = self.model(images)
-        
+
         # Count detections for simple metrics
         total_gt = sum(len(t['boxes']) for t in targets)
         total_pred = sum(len(p['boxes']) for p in predictions)
         total_masks = sum(len(p['masks']) for p in predictions)
-        
+
         return {
             'val_gt_boxes': total_gt,
             'val_pred_boxes': total_pred,
@@ -75,20 +72,18 @@ class MaskRCNNModule(L.LightningModule):
     def test_step(self, batch, batch_idx):
         images, targets = batch
         images = list(images)
-        
+
         # Get predictions
-        predictions = self.model(images)
-        
-        return predictions
+        return self.model(images)
+
 
     def predict_step(self, batch, batch_idx):
         images, targets = batch
         images = list(images)
-        
+
         # Get predictions
-        predictions = self.model(images)
-        return predictions
-    
+        return self.model(images)
+
     def configure_optimizers(self):  # type: ignore[override]
         params = [
             p for p in self.model.parameters()
@@ -106,7 +101,7 @@ class MaskRCNNModule(L.LightningModule):
 
 def train(settings=None):
     """Main training function using Lightning."""
-    
+
     if settings is None:
         settings = default_settings
 
@@ -116,13 +111,13 @@ def train(settings=None):
         batch_size=settings['batch_size'],
         num_workers=settings['num_workers'],
     )
-    
+
     # Create model
     model = MaskRCNNModule(
         num_classes=settings['num_classes'],
         learning_rate=settings['learning_rate'],
     )
-    
+
     # Setup callbacks
     save_path = Path(settings['model_save_path'])
     checkpoint_callback = ModelCheckpoint(
@@ -132,9 +127,9 @@ def train(settings=None):
         monitor='train_loss',
         mode='min',
     )
-    
+
     lr_monitor = LearningRateMonitor(logging_interval='epoch')
-    
+
     # Create trainer
     trainer = L.Trainer(
         max_epochs=settings['num_epochs'],
@@ -146,7 +141,7 @@ def train(settings=None):
         precision=settings['precision'],
         fast_dev_run=settings['fast_dev_run'],
     )
-    
+
     # Print dataset info
     data_module.setup('fit')
     print(f"Train samples: {len(data_module.train_dataset)}")
@@ -154,7 +149,7 @@ def train(settings=None):
 
     # Train
     trainer.fit(model, data_module)
-    
+
     # Save final model weights
     torch.save(model.model.state_dict(), save_path)
     print(f"Saved final model to {save_path}")
