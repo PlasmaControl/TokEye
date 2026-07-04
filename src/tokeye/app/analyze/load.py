@@ -1,17 +1,41 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
-import torch.nn as nn
-from tqdm.auto import tqdm
+from huggingface_hub import try_to_load_from_cache
 
-from .transforms import compute_stft
+from tokeye import hub, inference
+from tokeye.examples import make_example_signal
+from tokeye.inference import model_infer, signal_to_spectrogram
+from tokeye.transforms import (
+    DEFAULT_CLIP_DC,
+    DEFAULT_CLIP_HIGH,
+    DEFAULT_CLIP_LOW,
+    DEFAULT_HOP,
+    DEFAULT_N_FFT,
+    compute_stft,
+)
+
+if TYPE_CHECKING:
+    import torch.nn as nn
+
+__all__ = [
+    "find_models",
+    "find_signals",
+    "is_model_cached",
+    "load_example_signal",
+    "load_multi",
+    "load_single",
+    "model_infer",
+    "model_load",
+    "signal_load",
+]
 
 logger = logging.getLogger(__name__)
 
-DUMMY_INPUT_SHAPE = (1, 1, 512, 512)  # (batch_size, channels, height, width)
-WARMUP_ITERATIONS = 10
 MODEL_EXTENSIONS = [".pt", ".pt2"]
 MODEL_DIR = Path("model")
 SIGNAL_EXTENSIONS = [".npy"]
@@ -46,65 +70,23 @@ def find_signals(
 
 
 # Model Functions
+def is_model_cached(name: str) -> bool:
+    """Check whether a registry model's weights are already in the HF cache."""
+    spec = hub.MODEL_REGISTRY[name]
+    cached = try_to_load_from_cache(hub.DEFAULT_REPO_ID, spec.filename)
+    return isinstance(cached, str)
+
+
 def model_load(
-    filepath: Path,
+    source: str | Path,
     device: str = "auto",
-) -> nn.Module | torch.export.ExportedProgram:
-    if not filepath.exists():
-        raise FileNotFoundError(f"Model not found: {filepath}")
-
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    logger.info(f"Loading model: {filepath.name} on {device}")
-
-    match filepath.suffix:
-        case ".pt":
-            model = torch.load(
-                str(filepath),
-                map_location=device,
-                weights_only=False,
-            )
-            model.eval()
-        case ".pt2":
-            module = torch.export.load(str(filepath))
-            model = module.module()
-            model.to(device)
-        case _:
-            raise ValueError(f"Unsupported model format: {filepath.suffix}")
-
-    logger.info(f"Warming up model ({WARMUP_ITERATIONS} iterations)...")
-    dummy_input = torch.randn(*DUMMY_INPUT_SHAPE, device=device, dtype=torch.float32)
-    with torch.no_grad():
-        for _ in tqdm(range(WARMUP_ITERATIONS)):
-            _ = model(dummy_input)
+) -> nn.Module:
+    """Load a model by registry name or local path, then warm it up."""
+    logger.info(f"Loading model: {source}")
+    model = hub.load_model(source, device)
+    inference.warmup(model)
     logger.info("Model ready for inference")
     return model
-
-
-def model_infer(
-    inp_array: np.ndarray | None,
-    model: nn.Module | torch.export.ExportedProgram | None,
-) -> np.ndarray | None:
-    if inp_array is None or model is None:
-        logger.warning("Missing input or model for inference")
-        return None
-
-    logger.info(f"Running inference on input shape: {inp_array.shape}")
-
-    device = next(model.parameters()).device
-    inp_array = (inp_array - inp_array.mean()) / (inp_array.std() + 1e-6)
-    inp_tensor = torch.from_numpy(inp_array)
-    inp_tensor = inp_tensor.unsqueeze(0).unsqueeze(0).float()
-    inp_tensor = inp_tensor.to(device)
-
-    with torch.no_grad():
-        out_tensor = model(inp_tensor)
-    out_tensor = out_tensor[0]
-
-    out_tensor = torch.sigmoid(out_tensor)
-    out_tensor = out_tensor.squeeze(0).squeeze(0).cpu()
-    return out_tensor.numpy()
 
 
 # Signal Functions
@@ -137,11 +119,11 @@ def load_single(
     logger.info(f"Raw signal shape: {signal.shape}")
 
     # Apply STFT transform (generalize later)
-    n_fft = transform_args.get("n_fft", 1024)
-    hop = transform_args.get("hop_length", 256)
-    clip_dc = transform_args.get("clip_dc", True)
-    clip_low = transform_args.get("percentile_low", 1.0)
-    clip_high = transform_args.get("percentile_high", 99.0)
+    n_fft = transform_args.get("n_fft", DEFAULT_N_FFT)
+    hop = transform_args.get("hop_length", DEFAULT_HOP)
+    clip_dc = transform_args.get("clip_dc", DEFAULT_CLIP_DC)
+    clip_low = transform_args.get("percentile_low", DEFAULT_CLIP_LOW)
+    clip_high = transform_args.get("percentile_high", DEFAULT_CLIP_HIGH)
 
     return compute_stft(
         signal_data,
@@ -169,13 +151,33 @@ def load_multi(
     logger.info(f"Raw signal shape: {signal.shape}")
 
     # Apply STFT to both signals (generalize later)
-    n_fft = transform_args.get("n_fft", 1024)
-    hop = transform_args.get("hop_length", 256)
-    clip_dc = transform_args.get("clip_dc", True)
-    clip_low = transform_args.get("percentile_low", 1.0)
-    clip_high = transform_args.get("percentile_high", 99.0)
+    n_fft = transform_args.get("n_fft", DEFAULT_N_FFT)
+    hop = transform_args.get("hop_length", DEFAULT_HOP)
+    clip_dc = transform_args.get("clip_dc", DEFAULT_CLIP_DC)
+    clip_low = transform_args.get("percentile_low", DEFAULT_CLIP_LOW)
+    clip_high = transform_args.get("percentile_high", DEFAULT_CLIP_HIGH)
 
     return compute_stft(
+        signal,
+        n_fft=n_fft,
+        hop=hop,
+        clip_dc=clip_dc,
+        clip_low=clip_low,
+        clip_high=clip_high,
+    )
+
+
+def load_example_signal(transform_args: dict) -> np.ndarray | None:
+    """Generate the deterministic demo signal and compute its spectrogram."""
+    signal = make_example_signal()
+
+    n_fft = transform_args.get("n_fft", DEFAULT_N_FFT)
+    hop = transform_args.get("hop_length", DEFAULT_HOP)
+    clip_dc = transform_args.get("clip_dc", DEFAULT_CLIP_DC)
+    clip_low = transform_args.get("percentile_low", DEFAULT_CLIP_LOW)
+    clip_high = transform_args.get("percentile_high", DEFAULT_CLIP_HIGH)
+
+    return signal_to_spectrogram(
         signal,
         n_fft=n_fft,
         hop=hop,

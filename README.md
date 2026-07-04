@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="TokEye Logo" width="400">
+  <img src="src/tokeye/app/assets/logo.png" alt="TokEye Logo" width="400">
 </p>
 
 # TokEye
