@@ -15,9 +15,14 @@ uv sync --dev      # include dev tools (pytest, ruff, etc.)
 uv sync --group train  # include training deps (lightning, h5py, etc.)
 
 # Run the web app
-python -m TokEye.app              # starts on localhost:7860
-python -m TokEye.app --port 8888  # custom port
-python -m TokEye.app --share      # public Gradio link
+tokeye app                   # starts on localhost:7860 (or: python -m tokeye.app)
+tokeye app --port 8888       # custom port
+tokeye app --share           # public Gradio link
+
+# Headless CLI (no gradio import; safe for HPC/CI)
+tokeye run "shots/*.npy" --output-dir results  # batch inference
+tokeye download big_tf_unet                    # pre-fetch weights, print cache path
+tokeye example                                 # write a synthetic demo signal
 
 # Lint
 uv run ruff check .
@@ -43,12 +48,12 @@ Shared building blocks in `models/modules/`: `unet.py` (base U-Net), `nn.py` (la
 Model I/O: input `(B, 1, H, W)` → output `(B, 2, H, W)` where channel 0 = coherent activity, channel 1 = transient activity.
 
 ### App (`app/`)
-Gradio web interface launched via `python -m TokEye.app`. Three tabs:
+Gradio web interface launched via `tokeye app` (console script) or `python -m tokeye.app`. Three tabs:
 - **Analyze** (`app/analyze/`) — load signals, compute STFT spectrograms, run inference
 - **Annotate** (`app/tabs/annotate.py`) — manual labeling interface
 - **Utilities** (`app/tabs/utilities.py`) — miscellaneous tools
 
-Inference pipeline: `app/processing/` handles model loading, tiled inference for large spectrograms, and post-processing.
+Shared core modules (used by both the app and the `tokeye` CLI) live directly under `src/tokeye/`: `hub.py` (model registry + Hugging Face auto-download), `transforms.py` (STFT), `inference.py` (model inference), `batch.py` (headless batch runner), `examples.py` (synthetic demo signal), `cli.py` (the `tokeye` console entry point).
 
 ### Training (`training/`)
 Multi-step data pipelines (step_0 through step_7) for preparing training data from raw signals. Two regimes: `big_tf_unet/` (original) and `big_tf_unet_multiscale/` (enhanced). Uses PyTorch Lightning.
@@ -64,4 +69,4 @@ Domain-specific utilities: DIII-D tokamak helpers (`extra/D3D/`), evaluation too
 
 ## CI
 
-GitHub Actions runs on push/PR to main: `uv run ruff check .` then `uv run pytest` across Python 3.10–3.14.
+GitHub Actions runs on push/PR to main: `uv run ruff check .` then `uv run pytest` across Python 3.13–3.14.
