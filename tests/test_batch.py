@@ -149,7 +149,9 @@ class TestRunBatch:
         assert (out_dir / "spectrogram_mask.npy").exists()
         assert not (out_dir / "bad_mask.npy").exists()
 
-    def test_loads_model_once_via_hub(self, spectrogram_npy, tmp_path, monkeypatch):
+    def test_loads_model_once_via_hub(self, tmp_path, monkeypatch):
+        """Multiple input files -> exactly one load_model call (per run, not
+        per file)."""
         model = nn.Conv2d(1, 2, kernel_size=1)
         calls = []
 
@@ -159,8 +161,18 @@ class TestRunBatch:
 
         monkeypatch.setattr("tokeye.hub.load_model", fake_load_model)
 
-        batch.run_batch(
-            [str(spectrogram_npy)], out_dir=tmp_path / "out", device="cpu"
+        rng = np.random.default_rng(2)
+        for name in ("first.npy", "second.npy"):
+            np.save(tmp_path / name, rng.normal(size=(64, 32)).astype(np.float32))
+
+        out_dir = tmp_path / "out"
+        failures = batch.run_batch(
+            [str(tmp_path / "first.npy"), str(tmp_path / "second.npy")],
+            out_dir=out_dir,
+            device="cpu",
         )
 
+        assert failures == 0
+        assert (out_dir / "first_mask.npy").exists()
+        assert (out_dir / "second_mask.npy").exists()
         assert calls == [(batch.hub.DEFAULT_MODEL, "cpu")]

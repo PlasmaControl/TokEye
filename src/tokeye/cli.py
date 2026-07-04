@@ -150,7 +150,7 @@ def _handle_run(args: argparse.Namespace) -> int:
             threshold=args.threshold,
             device=args.device,
         )
-    except ValueError as exc:
+    except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -175,6 +175,10 @@ def _handle_example(args: argparse.Namespace) -> int:
     from tokeye.examples import make_example_signal
 
     output_path = Path(args.output)
+    if output_path.suffix != ".npy":
+        # np.save silently appends ".npy" to paths without that suffix;
+        # normalize up-front so the printed path is the file that exists.
+        output_path = output_path.with_suffix(".npy")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     signal = make_example_signal(duration_s=args.duration, fs=args.fs, seed=args.seed)
     np.save(output_path, signal)

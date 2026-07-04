@@ -68,6 +68,21 @@ class TestMain:
         err = capsys.readouterr().err
         assert "does_not_exist_anywhere_xyz.npy" in err
 
+    def test_run_with_missing_model_path_returns_two_clean_error(
+        self, tmp_path, capsys
+    ):
+        input_path = tmp_path / "input.npy"
+        np.save(input_path, np.zeros((64, 32), dtype=np.float32))
+
+        exit_code = main(
+            ["run", str(input_path), "--model", "nope/missing.pt"]
+        )
+
+        assert exit_code == 2
+        err = capsys.readouterr().err
+        assert "nope/missing.pt" in err
+        assert "Traceback" not in err
+
     def test_example_writes_file_and_returns_zero(self, tmp_path, capsys):
         out_path = tmp_path / "example.npy"
 
@@ -87,6 +102,25 @@ class TestMain:
         assert out_path.exists()
         sig = np.load(out_path)
         assert sig.shape[0] == 100
+
+    def test_example_extensionless_output_prints_actual_file(self, tmp_path, capsys):
+        """np.save appends .npy; the printed path must be the file that exists."""
+        exit_code = main(
+            [
+                "example",
+                "--output",
+                str(tmp_path / "demo"),
+                "--duration",
+                "0.01",
+                "--fs",
+                "10000",
+            ]
+        )
+
+        assert exit_code == 0
+        printed = capsys.readouterr().out.strip()
+        assert printed == str(tmp_path / "demo.npy")
+        assert (tmp_path / "demo.npy").exists()
 
     def test_download_unknown_model_returns_two_clean_error(self, capsys):
         exit_code = main(["download", "not_a_real_model_name"])
