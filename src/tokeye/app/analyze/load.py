@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 MODEL_EXTENSIONS = [".pt", ".pt2"]
 MODEL_DIR = Path("model")
 SIGNAL_EXTENSIONS = [".npy"]
-SIGNAL_DIR = Path("data/input")
 
 
 # Directory Scanning

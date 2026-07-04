@@ -78,6 +78,48 @@ def test_is_model_cached(monkeypatch, cached_value):
     assert load.is_model_cached("big_tf_unet") is (cached_value is not None)
 
 
+def test_ensure_model_skips_load_when_no_signal(monkeypatch):
+    """No signal loaded -> warn and return model state unchanged, no load.
+
+    gr.Warning does not halt a gradio .then() chain, so ensure_model itself
+    must gate the expensive download/warmup on signal presence.
+    """
+    from tokeye.app.analyze import analyze
+
+    def fail_load(model_file):
+        raise AssertionError("model load must not run without a signal")
+
+    monkeypatch.setattr(analyze, "wrapper_model_load", fail_load)
+
+    with pytest.warns(UserWarning, match="Load a signal first"):
+        result = analyze.ensure_model(None, "big_tf_unet", None)
+
+    assert result is None
+
+
+def test_ensure_model_passes_loaded_model_through(monkeypatch):
+    from tokeye.app.analyze import analyze
+
+    def fail_load(model_file):
+        raise AssertionError("model load must not run when already loaded")
+
+    monkeypatch.setattr(analyze, "wrapper_model_load", fail_load)
+    loaded = nn.Conv2d(1, 2, 1)
+    spectrogram = np.zeros((4, 4))
+
+    assert analyze.ensure_model(loaded, "big_tf_unet", spectrogram) is loaded
+
+
+def test_ensure_model_loads_when_signal_present_and_model_cold(monkeypatch):
+    from tokeye.app.analyze import analyze
+
+    stub_model = nn.Conv2d(1, 2, 1)
+    monkeypatch.setattr(analyze, "wrapper_model_load", lambda model_file: stub_model)
+    spectrogram = np.zeros((4, 4))
+
+    assert analyze.ensure_model(None, "big_tf_unet", spectrogram) is stub_model
+
+
 def test_create_app_constructs_without_error():
     """Blocks construction should be pure UI wiring: no model load, no network."""
     from tokeye.app.__main__ import create_app

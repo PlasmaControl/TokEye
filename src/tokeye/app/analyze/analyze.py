@@ -90,17 +90,19 @@ def wrapper_model_load(model_file):
         return None
 
 
-def ensure_model(model, model_file):
-    """Load the model on first use; pass an already-loaded model through."""
+def ensure_model(model, model_file, signal_transform):
+    """Load the model on first use; pass an already-loaded model through.
+
+    Skips loading entirely (returning the model state unchanged) if no signal
+    has been loaded yet: gr.Warning does not halt a .then() chain, so this
+    gate is what prevents a pointless download/warmup on a no-signal click.
+    """
+    if signal_transform is None:
+        gr.Warning("Load a signal first (or click Load Example Signal)")
+        return model
     if model is not None:
         return model
     return wrapper_model_load(model_file)
-
-
-def warn_if_missing_signal(signal_transform):
-    """Nudge the user if Analyze is clicked before any signal is loaded."""
-    if signal_transform is None:
-        gr.Warning("Load a signal first (or click Load Example Signal)")
 
 
 def wrapper_load_single(signal_directory, signal_file, transform_args):
@@ -383,12 +385,8 @@ def analyze_tab():
 
     ## One-click Analyze: ensure a model is loaded, run inference, visualize
     analyze_btn.click(
-        fn=warn_if_missing_signal,
-        inputs=[signal_transform],
-        outputs=[],
-    ).then(
         fn=ensure_model,
-        inputs=[model, model_file],
+        inputs=[model, model_file, signal_transform],
         outputs=[model],
     ).then(
         fn=model_infer,
