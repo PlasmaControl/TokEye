@@ -128,7 +128,7 @@ Output will be a tensor of shape (B, 2, H, W)
 Best performance when spectrograms are oriented so that when they are plotted with matplotlib, the lowest frequency bin is oriented with the bottom when `origin='lower'`. Spectrograms should be standardized (mean = 0, std = 1). If baseline activity is very strong, clipping the input may help, but is generally not needed.
 
 The first channel of the output will return preferential measurements of coherent activity (useful for most tasks)
-THe second channel of the output will return preferential measurements of transient activity
+The second channel of the output will return preferential measurements of transient activity
 
 ## Data
 Keep signals as 1D numpy float arrays (raw time series) — no need to normalize or preprocess them. The CLI also accepts 2D arrays (precomputed spectrograms) directly. The app scans a signal directory for `.npy` files (default `data/input`, configurable in the Analyze tab).
