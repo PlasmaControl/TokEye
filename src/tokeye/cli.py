@@ -128,8 +128,10 @@ def _handle_app(args: argparse.Namespace) -> int:
 
 
 def _handle_run(args: argparse.Namespace) -> int:
+    from huggingface_hub.errors import HfHubHTTPError
+
     from tokeye import batch
-    from tokeye.hub import DEFAULT_MODEL
+    from tokeye.hub import DEFAULT_MODEL, DEFAULT_REPO_ID
 
     stft_kwargs = {
         "n_fft": args.n_fft,
@@ -153,10 +155,20 @@ def _handle_run(args: argparse.Namespace) -> int:
     except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except (HfHubHTTPError, OSError) as exc:
+        print(
+            f"error: could not download model {model!r} from Hugging Face "
+            f"repo {DEFAULT_REPO_ID!r}: {exc}. If the repo has moved, set "
+            "TOKEYE_HF_REPO to override.",
+            file=sys.stderr,
+        )
+        return 2
 
 
 def _handle_download(args: argparse.Namespace) -> int:
-    from tokeye.hub import DEFAULT_MODEL, download_model
+    from huggingface_hub.errors import HfHubHTTPError
+
+    from tokeye.hub import DEFAULT_MODEL, DEFAULT_REPO_ID, download_model
 
     names = args.models or [DEFAULT_MODEL]
     for name in names:
@@ -164,6 +176,14 @@ def _handle_download(args: argparse.Namespace) -> int:
             path = download_model(name)
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except (HfHubHTTPError, OSError) as exc:
+            print(
+                f"error: could not download model {name!r} from Hugging Face "
+                f"repo {DEFAULT_REPO_ID!r}: {exc}. If the repo has moved, set "
+                "TOKEYE_HF_REPO to override.",
+                file=sys.stderr,
+            )
             return 2
         print(path)
     return 0

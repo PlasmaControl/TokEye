@@ -1,9 +1,23 @@
 from __future__ import annotations
 
+import httpx
 import numpy as np
 import pytest
+from huggingface_hub.errors import RepositoryNotFoundError
 
 from tokeye.cli import build_parser, main
+
+
+def _repository_not_found_error() -> RepositoryNotFoundError:
+    """Build a real RepositoryNotFoundError the way huggingface_hub does.
+
+    ``HfHubHTTPError`` (its base class) requires a ``response`` kwarg with no
+    default, so a bare ``RepositoryNotFoundError("msg")`` raises ``TypeError``.
+    """
+    response = httpx.Response(
+        404, request=httpx.Request("GET", "https://huggingface.co/does/not/exist")
+    )
+    return RepositoryNotFoundError("Repository Not Found", response=response)
 
 
 class TestBuildParser:
@@ -128,6 +142,37 @@ class TestMain:
         assert exit_code == 2
         err = capsys.readouterr().err
         assert "not_a_real_model_name" in err
+
+    def test_download_hub_error_returns_two_clean_error(self, monkeypatch, capsys):
+        def fake_download_model(name, repo_id=None):
+            raise _repository_not_found_error()
+
+        monkeypatch.setattr("tokeye.hub.download_model", fake_download_model)
+
+        exit_code = main(["download"])
+
+        assert exit_code == 2
+        err = capsys.readouterr().err
+        assert "PlasmaControl/tokeye" in err
+        assert "TOKEYE_HF_REPO" in err
+        assert "Traceback" not in err
+
+    def test_run_hub_error_returns_two_clean_error(self, tmp_path, monkeypatch, capsys):
+        input_path = tmp_path / "input.npy"
+        np.save(input_path, np.zeros((64, 32), dtype=np.float32))
+
+        def fake_load_model(source, device="auto"):
+            raise _repository_not_found_error()
+
+        monkeypatch.setattr("tokeye.hub.load_model", fake_load_model)
+
+        exit_code = main(["run", str(input_path), "--device", "cpu"])
+
+        assert exit_code == 2
+        err = capsys.readouterr().err
+        assert "PlasmaControl/tokeye" in err
+        assert "TOKEYE_HF_REPO" in err
+        assert "Traceback" not in err
 
     def test_app_subcommand_delegates_to_app_main(self, monkeypatch):
         calls = {}
