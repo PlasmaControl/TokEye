@@ -20,6 +20,8 @@ dependencies = [
     "omegaconf",
     "tables",
     "pydantic",
+    "huggingface-hub>=0.30",
+    "tqdm",
 ]
 
 [project.optional-dependencies]

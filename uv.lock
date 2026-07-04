@@ -2707,10 +2707,11 @@ wheels = [
 
 [[package]]
 name = "tokeye"
-version = "0.9.0"
+version = "0.9.5"
 source = { editable = "." }
 dependencies = [
     { name = "gradio" },
+    { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "omegaconf" },
@@ -2721,6 +2722,7 @@ dependencies = [
     { name = "torchcodec" },
     { name = "torchinfo" },
     { name = "torchvision" },
+    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -2769,6 +2771,7 @@ train = [
 requires-dist = [
     { name = "gradio" },
     { name = "h5py", marker = "extra == 'train'" },
+    { name = "huggingface-hub", specifier = ">=0.30" },
     { name = "ipykernel", marker = "extra == 'train'" },
     { name = "ipywidgets", marker = "extra == 'train'" },
     { name = "joblib", marker = "extra == 'train'" },
@@ -2790,6 +2793,7 @@ requires-dist = [
     { name = "torchinfo" },
     { name = "torchmetrics", marker = "extra == 'train'" },
     { name = "torchvision" },
+    { name = "tqdm" },
     { name = "wavio", marker = "extra == 'train'" },
 ]
 provides-extras = ["train"]
