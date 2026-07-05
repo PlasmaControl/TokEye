@@ -134,6 +134,21 @@ The second channel of the output will return preferential measurements of transi
 ## Data
 Keep signals as 1D numpy float arrays (raw time series) — no need to normalize or preprocess them. The CLI also accepts 2D arrays (precomputed spectrograms) directly. The app scans a signal directory for `.npy` files (default `data/input`, configurable in the Analyze tab).
 
+Bringing your own data takes two lines:
+
+```python
+import numpy as np
+
+signal = ...  # any 1D float array: tokamak diagnostic, hydrophone, etc.
+np.save("shots/myshot.npy", signal)
+```
+
+```bash
+tokeye run shots/myshot.npy --output-dir results
+```
+
+No data yet? `tokeye example` writes a synthetic demo signal you can run immediately, and the web app has a matching "Load Example Signal" button.
+
 ## Development
 
 ```bash

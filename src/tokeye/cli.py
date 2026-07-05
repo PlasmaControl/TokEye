@@ -153,7 +153,12 @@ def _handle_run(args: argparse.Namespace) -> int:
             device=args.device,
         )
     except (ValueError, FileNotFoundError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        hint = (
+            " (no data yet? create a demo signal with: tokeye example)"
+            if "No input files found" in str(exc)
+            else ""
+        )
+        print(f"error: {exc}{hint}", file=sys.stderr)
         return 2
     except (HfHubHTTPError, OSError) as exc:
         print(

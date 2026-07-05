@@ -30,6 +30,27 @@ from .visualize import (
 
 logger = logging.getLogger(__name__)
 
+GETTING_STARTED_MD = """\
+**1. Save your signal as a 1D float NumPy array** (raw time series — any \
+length, no normalization or preprocessing needed):
+
+```python
+import numpy as np
+
+np.save("data/input/myshot.npy", signal)  # signal: 1D float array
+```
+
+**2. Point *Signal Directory* at that folder** — the signal dropdowns update \
+automatically (or click *Refresh Page*).
+
+**3. Load the signal, then click *Analyze*.** The built-in `big_tf_unet` \
+model downloads automatically on first use (~30 MB, cached).
+
+No data yet? Click **Load Example Signal** below, or run `tokeye example` in \
+a terminal. Audio files (.wav/.mp3/...)? Convert them to `.npy` in the \
+**Utilities** tab.
+"""
+
 
 def setup_stft_transform(n_fft, hop_length, clip_dc, clip_low, clip_high):
     """Create transform args dict for state storage."""
@@ -132,6 +153,10 @@ def wrapper_load_example(transform_args):
 def analyze_tab():
     # User Interface
     with gr.Column():
+        ## Getting Started
+        with gr.Accordion("Getting started — where to put your data", open=False):
+            gr.Markdown(GETTING_STARTED_MD)
+
         ## Refresh Page
         refresh_btn = gr.Button("Refresh Page")
 

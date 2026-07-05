@@ -81,6 +81,7 @@ class TestMain:
         assert exit_code == 2
         err = capsys.readouterr().err
         assert "does_not_exist_anywhere_xyz.npy" in err
+        assert "tokeye example" in err
 
     def test_run_with_missing_model_path_returns_two_clean_error(
         self, tmp_path, capsys
