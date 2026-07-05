@@ -26,17 +26,17 @@ tokeye app           # opens web app on http://localhost:7860
 ```
 
 - The default model downloads automatically from Hugging Face on first use (~30 MB, cached — no manual setup).
-- No data handy? Click "Load Example Signal" in the app, or generate one from the shell with `tokeye example`.
+- No data on hand? Click "Load Example Signal" in the app, or generate one from the shell with `tokeye example`.
 - `pip install` requires Python >= 3.13; `uvx`/`uv tool install` fetch a compatible Python automatically.
 
 Zero-install trial: `uvx tokeye app` runs the app without installing anything into your environment.
 
 ## Batch processing (CLI)
 
-For headless / scripted use (no browser needed), run inference directly:
+For headless / scripted use (no browser needed), run inference directly. For example:
 
 ```bash
-tokeye run "shots/*.npy" --output-dir results
+tokeye run "files/*.npy" --output-dir results
 ```
 
 `INPUT` arguments can be files, directories (all `*.npy` files inside are used), or quoted glob patterns. Each input is interpreted by its shape:
