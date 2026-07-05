@@ -12,11 +12,11 @@ Usage:
 
     uv run python scripts/upload_model.py --create
     uv run python scripts/upload_model.py --model big_tf_unet \
-        --repo PlasmaControl/tokeye
+        --repo nc1/big_tf_unet
 
 That is equivalent to the raw one-liner:
 
-    hf upload PlasmaControl/tokeye model/big_tf_unet_251210.pt \
+    hf upload nc1/big_tf_unet model/big_tf_unet_251210.pt \
         big_tf_unet_251210.pt
 
 ...except that `hf upload` does not check that the file loads into the
