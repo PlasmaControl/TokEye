@@ -119,7 +119,7 @@ This creates a `.venv/`; activate it with `source .venv/bin/activate`, or prefix
 | --- | --- | --- |
 | `big_tf_unet` | `big_tf_unet_251210.pt` | Transformer U-Net trained on multiscale (multiwindow, multihop) spectrograms. |
 
-Weights are hosted on [Hugging Face](https://huggingface.co/PlasmaControl/tokeye) and download automatically the first time a registry name is used (cached in `~/.cache/huggingface`). Override the source repo with the `TOKEYE_HF_REPO` environment variable.
+Weights are hosted on [Hugging Face](https://huggingface.co/nc1/big_tf_unet) and download automatically the first time a registry name is used (cached in `~/.cache/huggingface`). Override the source repo with the `TOKEYE_HF_REPO` environment variable.
 
 To use a local checkpoint instead, put `.pt`/`.pt2` files in a `model/` directory (picked up by the app's model dropdown) or pass a path directly via `--model PATH`.
 

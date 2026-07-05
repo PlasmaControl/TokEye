@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REPO_ID = os.environ.get("TOKEYE_HF_REPO", "PlasmaControl/tokeye")
+DEFAULT_REPO_ID = os.environ.get("TOKEYE_HF_REPO", "nc1/big_tf_unet")
 DEFAULT_MODEL = "big_tf_unet"
 
 _PATH_SUFFIXES = {".pt", ".pt2"}

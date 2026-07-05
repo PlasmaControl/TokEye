@@ -153,7 +153,7 @@ class TestMain:
 
         assert exit_code == 2
         err = capsys.readouterr().err
-        assert "PlasmaControl/tokeye" in err
+        assert "nc1/big_tf_unet" in err
         assert "TOKEYE_HF_REPO" in err
         assert "Traceback" not in err
 
@@ -170,7 +170,7 @@ class TestMain:
 
         assert exit_code == 2
         err = capsys.readouterr().err
-        assert "PlasmaControl/tokeye" in err
+        assert "nc1/big_tf_unet" in err
         assert "TOKEYE_HF_REPO" in err
         assert "Traceback" not in err
 
