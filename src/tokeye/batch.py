@@ -24,6 +24,7 @@ from .transforms import (
     DEFAULT_CLIP_LOW,
     DEFAULT_HOP,
     DEFAULT_N_FFT,
+    log_scale,
 )
 
 mpl.use("Agg")  # Must precede the pyplot import below (headless HPC safety).
@@ -66,13 +67,18 @@ def collect_inputs(inputs: list[str]) -> list[Path]:
     return result
 
 
-def load_input(path: Path, stft_kwargs: dict) -> np.ndarray:
-    """Load a ``.npy`` file as a spectrogram, computing one if it's a signal."""
+def load_input(path: Path, stft_kwargs: dict, log: bool = False) -> np.ndarray:
+    """Load a ``.npy`` file as a spectrogram, computing one if it's a signal.
+
+    ``log`` applies ``log1p`` to 2D (precomputed) spectrograms stored in
+    linear scale; 1D signals are always log-scaled as part of the STFT.
+    """
     arr = np.load(path)
     if arr.ndim == 1:
         return signal_to_spectrogram(arr, **stft_kwargs)
     if arr.ndim == 2:
-        return arr.astype(float)
+        arr = arr.astype(float)
+        return log_scale(arr) if log else arr
     raise ValueError(f"expected 1D signal or 2D spectrogram, got ndim={arr.ndim}")
 
 
@@ -108,9 +114,10 @@ def process_file(
     out_dir: Path,
     save_png: bool = True,
     threshold: float = 0.5,
+    log: bool = False,
 ) -> Path:
     """Run inference on a single input file and write its outputs to disk."""
-    spectrogram = load_input(path, stft_kwargs)
+    spectrogram = load_input(path, stft_kwargs, log=log)
     mask = model_infer(spectrogram, model)
 
     mask_path = out_dir / f"{path.stem}_mask.npy"
@@ -131,6 +138,7 @@ def run_batch(
     save_png: bool = True,
     threshold: float = 0.5,
     device: str = "auto",
+    log: bool = False,
 ) -> int:
     """Run inference over ``inputs``, writing masks (and previews) to ``out_dir``.
 
@@ -160,6 +168,7 @@ def run_batch(
                 out_dir,
                 save_png=save_png,
                 threshold=threshold,
+                log=log,
             )
         except Exception:
             logger.error("Failed to process %s", path, exc_info=True)

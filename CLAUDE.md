@@ -53,7 +53,7 @@ Gradio web interface launched via `tokeye app` (console script) or `python -m to
 - **Annotate** (`app/tabs/annotate.py`) — manual labeling interface
 - **Utilities** (`app/tabs/utilities.py`) — miscellaneous tools
 
-Shared core modules (used by both the app and the `tokeye` CLI) live directly under `src/tokeye/`: `hub.py` (model registry + Hugging Face auto-download), `transforms.py` (STFT), `inference.py` (model inference), `batch.py` (headless batch runner), `examples.py` (synthetic demo signal), `cli.py` (the `tokeye` console entry point).
+Shared core modules (used by both the app and the `tokeye` CLI) live directly under `src/tokeye/`: `hub.py` (model registry + Hugging Face auto-download), `transforms.py` (STFT), `inference.py` (model inference), `api.py` (the `TokEye` class — public Python API, lazily exported from the package root), `batch.py` (headless batch runner), `examples.py` (synthetic demo signal), `cli.py` (the `tokeye` console entry point).
 
 ### Training (`training/`)
 Multi-step data pipelines (step_0 through step_7) for preparing training data from raw signals. Two regimes: `big_tf_unet/` (original) and `big_tf_unet_multiscale/` (enhanced). Uses PyTorch Lightning.

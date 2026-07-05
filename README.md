@@ -31,6 +31,42 @@ tokeye app           # opens web app on http://localhost:7860
 
 Zero-install trial: `uvx tokeye app` runs the app without installing anything into your environment.
 
+## Python API
+
+To use TokEye inside your own program, import the `TokEye` class and call it — no configuration needed:
+
+```python
+import numpy as np
+from tokeye import TokEye
+
+eye = TokEye()  # loads the default model (auto-downloads on first use)
+
+mask = eye(signal)             # 1D time series → STFT → inference
+mask = eye(spectrogram)        # 2D spectrogram → inference directly
+coherent, transient = mask     # (2, H, W) sigmoid scores in [0, 1]
+```
+
+Input is auto-detected by shape: a 1D array is treated as a raw time series (TokEye computes the spectrogram), a 2D array as a ready spectrogram. Standardization happens internally — no preprocessing needed.
+
+If your 2D spectrogram is stored in **linear scale** (raw STFT magnitude/power), pass `log=True` so TokEye applies `log1p` first — the model expects log-scaled input:
+
+```python
+mask = eye(linear_spectrogram, log=True)      # per call
+eye = TokEye(log=True)                        # or for every call
+```
+
+`log` is off by default and ignored for 1D inputs (the STFT already log-scales). Everything is configurable through the constructor, but the defaults just work:
+
+```python
+eye = TokEye(
+    model="big_tf_unet",   # registry name or path to a local .pt/.pt2
+    device="auto",         # "cpu", "cuda", or "auto"
+    n_fft=1024, hop=256,   # STFT settings (1D inputs only)
+    clip_dc=True, clip_low=1.0, clip_high=99.0,
+    log=False,             # log1p for linear-scale 2D spectrograms
+)
+```
+
 ## Batch processing (CLI)
 
 For headless / scripted use (no browser needed), run inference directly. For example:
@@ -58,6 +94,7 @@ Flags:
 | `--hop` | `256` | STFT hop size (1D inputs only). |
 | `--keep-dc` | off | Keep the DC bin (dropped by default). |
 | `--clip-low` / `--clip-high` | `1.0` / `99.0` | Percentile clip bounds applied to the spectrogram. |
+| `--log` | off | Apply `log1p` to 2D spectrogram inputs stored in linear scale (1D signals are always log-scaled during the STFT). |
 | `--threshold` | `0.5` | Mask threshold used only for the preview PNG overlay. |
 | `--no-png` | off | Skip preview PNGs; write masks only. |
 | `--device` | `auto` | `cpu`, `cuda`, or `auto`. |

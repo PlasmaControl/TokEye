@@ -35,6 +35,26 @@ def test_batch_import_does_not_pull_in_gradio():
     assert "ok" in result.stdout
 
 
+def test_package_import_does_not_pull_in_torch():
+    """``from tokeye import TokEye`` is lazy (PEP 562): the bare package
+    import must stay torch-free or ``tokeye --help`` slows to a crawl."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import tokeye, sys; "
+            "assert 'torch' not in sys.modules; "
+            "print('ok')",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "ok" in result.stdout
+
+
 def test_cli_import_does_not_pull_in_gradio_or_torch():
     result = subprocess.run(
         [

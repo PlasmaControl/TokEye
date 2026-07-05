@@ -25,13 +25,14 @@ class TestBuildParser:
         parser = build_parser()
 
         args = parser.parse_args(
-            ["run", "a.npy", "--hop", "128", "--no-png", "--model", "model/x.pt"]
+            ["run", "a.npy", "--hop", "128", "--no-png", "--model", "model/x.pt", "--log"]
         )
 
         assert args.inputs == ["a.npy"]
         assert args.hop == 128
         assert args.save_png is False
         assert args.model == "model/x.pt"
+        assert args.log is True
 
     def test_run_subcommand_defaults(self):
         parser = build_parser()
@@ -48,6 +49,7 @@ class TestBuildParser:
         assert args.threshold == 0.5
         assert args.save_png is True
         assert args.device == "auto"
+        assert args.log is False
 
     def test_app_subcommand_defaults(self):
         parser = build_parser()

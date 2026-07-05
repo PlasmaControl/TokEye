@@ -10,6 +10,20 @@ DEFAULT_CLIP_LOW = 1.0
 DEFAULT_CLIP_HIGH = 99.0
 
 
+def log_scale(arr: np.ndarray) -> np.ndarray:
+    """Apply ``log1p`` to a linear-scale spectrogram.
+
+    Rejects negative values: they indicate the input is already log/dB
+    scaled, and ``log1p`` would silently produce NaNs below -1.
+    """
+    if arr.min() < 0:
+        raise ValueError(
+            "log scaling expects a non-negative (linear-scale) spectrogram; "
+            "input has negative values — is it already log/dB scaled?"
+        )
+    return np.log1p(arr)
+
+
 def compute_stft(
     arr: np.ndarray,
     n_fft: int = DEFAULT_N_FFT,

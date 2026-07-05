@@ -67,6 +67,14 @@ def _add_run_subcommand(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--clip-low", type=float, default=DEFAULT_CLIP_LOW)
     parser.add_argument("--clip-high", type=float, default=DEFAULT_CLIP_HIGH)
+    parser.add_argument(
+        "--log",
+        action="store_true",
+        help=(
+            "Apply log1p to 2D spectrogram inputs stored in linear scale "
+            "(1D signals are always log-scaled during the STFT)."
+        ),
+    )
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument(
         "--no-png",
@@ -151,6 +159,7 @@ def _handle_run(args: argparse.Namespace) -> int:
             save_png=args.save_png,
             threshold=args.threshold,
             device=args.device,
+            log=args.log,
         )
     except (ValueError, FileNotFoundError) as exc:
         hint = (

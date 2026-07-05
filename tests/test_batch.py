@@ -86,6 +86,22 @@ class TestLoadInput:
         with pytest.raises(ValueError, match="ndim=3"):
             batch.load_input(path, {})
 
+    def test_log_applies_log1p_to_2d_input(self, tmp_path):
+        arr = np.random.default_rng(0).random((16, 16))
+        path = tmp_path / "linear.npy"
+        np.save(path, arr)
+
+        spec = batch.load_input(path, {}, log=True)
+
+        np.testing.assert_allclose(spec, np.log1p(arr))
+
+    def test_log_rejects_negative_2d_input(self, tmp_path):
+        path = tmp_path / "db_scaled.npy"
+        np.save(path, np.full((8, 8), -30.0))
+
+        with pytest.raises(ValueError, match="negative"):
+            batch.load_input(path, {}, log=True)
+
 
 class TestRunBatch:
     def test_on_1d_signal_writes_mask_and_preview(
