@@ -25,7 +25,7 @@ pip install tokeye   # or: uv tool install tokeye
 tokeye app           # opens web app on http://localhost:7860
 ```
 
-- The default model downloads automatically from Hugging Face on first use (~30 MB, cached — no manual setup).
+- The default model downloads automatically from Hugging Face on first use (~30 MB).
 - No data on hand? Click "Load Example Signal" in the app, or generate one from the shell with `tokeye example`.
 - `pip install` requires Python >= 3.13; `uvx`/`uv tool install` fetch a compatible Python automatically.
 
@@ -33,7 +33,7 @@ Zero-install trial: `uvx tokeye app` runs the app without installing anything in
 
 ## Python API
 
-To use TokEye inside your own program, import the `TokEye` class and call it — no configuration needed:
+To use TokEye inside your own program, import the `TokEye` class:
 
 ```python
 import numpy as np
@@ -46,7 +46,7 @@ mask = eye(spectrogram)        # 2D spectrogram → inference directly
 coherent, transient = mask     # (2, H, W) sigmoid scores in [0, 1]
 ```
 
-Input is auto-detected by shape: a 1D array is treated as a raw time series (TokEye computes the spectrogram), a 2D array as a ready spectrogram. Standardization happens internally — no preprocessing needed.
+Input is auto-detected by shape: a 1D array is treated as a raw time series (TokEye computes the spectrogram), a 2D array as a ready spectrogram. Standardization happens internally.
 
 If your 2D spectrogram is stored in **linear scale** (raw STFT magnitude/power), pass `log=True` so TokEye applies `log1p` first — the model expects log-scaled input:
 
@@ -169,7 +169,7 @@ The first channel of the output will return preferential measurements of coheren
 The second channel of the output will return preferential measurements of transient activity
 
 ## Data
-Keep signals as 1D numpy float arrays (raw time series) — no need to normalize or preprocess them. The CLI also accepts 2D arrays (precomputed spectrograms) directly. The app scans a signal directory for `.npy` files (default `data/input`, configurable in the Analyze tab).
+Keep signals as 1D numpy float arrays (raw time series). No need to normalize or preprocess them. The CLI also accepts 2D arrays (precomputed spectrograms) directly. The app scans a signal directory for `.npy` files (default `data/input`, configurable in the Analyze tab).
 
 Bringing your own data takes two lines:
 
