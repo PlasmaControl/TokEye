@@ -46,6 +46,7 @@ def enhance(
     Returns:
         RGB array ready for plotting
     """
+    arr = arr.copy()
     n_channels, h, w = arr.shape
 
     # Clip values

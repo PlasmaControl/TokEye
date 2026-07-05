@@ -2,8 +2,11 @@
 TokEye Main Inference
 """
 
+from __future__ import annotations
+
+import argparse
+import importlib.resources
 import logging
-import sys
 from pathlib import Path
 
 import gradio as gr
@@ -23,8 +26,7 @@ MAX_PORT_ATTEMPTS = 10
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# Current working directory
-cwd = Path.cwd()
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> gr.Blocks:
@@ -33,14 +35,16 @@ def create_app() -> gr.Blocks:
         theme=make_theme(),
         css="footer{display:none !important}",
     ) as app:
-        gr.Image(
-            str(Path.cwd() / "assets" / "logo.png"),
-            height=300,
-            interactive=False,
-            container=False,
-            show_download_button=False,
-            show_fullscreen_button=False,
-        )
+        logo_path = importlib.resources.files("tokeye.app").joinpath("assets/logo.png")
+        if logo_path.is_file():
+            gr.Image(
+                str(logo_path),
+                height=300,
+                interactive=False,
+                container=False,
+                show_download_button=False,
+                show_fullscreen_button=False,
+            )
         with gr.Tab("Analyze"):
             analyze_tab()
         with gr.Tab("Annotate"):
@@ -50,35 +54,44 @@ def create_app() -> gr.Blocks:
     return app
 
 
-def get_port():
-    if "--port" in sys.argv:
-        port_index = sys.argv.index("--port") + 1
-        if port_index < len(sys.argv):
-            return int(sys.argv[port_index])
-    return DEFAULT_PORT
-
-
-def launch(app, port):
-    app.launch(
-        # favicon_path="assets/ICON.ico",  # Set up favicon later
-        share="--share" in sys.argv,
-        inbrowser="--open" in sys.argv,
-        server_port=port,
-    )
-
-
-if __name__ == "__main__":
-    logging.info(f"Initializing TokEye in: {cwd}")
-    # Set up
+def main(
+    port: int = DEFAULT_PORT,
+    share: bool = False,
+    open_browser: bool = False,
+) -> None:
+    logger.info(f"Initializing TokEye in: {Path.cwd()}")
     app = create_app()
-    # Launch application
-    port = get_port()
     for _ in range(MAX_PORT_ATTEMPTS):
         try:
-            launch(app, port)
+            app.launch(
+                share=share,
+                inbrowser=open_browser,
+                server_port=port,
+            )
         except OSError:
             print(f"Failed on port {port}")
             port -= 1
         except Exception as error:
             print(f"{error}")
             break
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="python -m tokeye.app",
+        description="Launch the TokEye Gradio app.",
+    )
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_PORT, help="Port to serve the app on."
+    )
+    parser.add_argument(
+        "--share", action="store_true", help="Create a public Gradio share link."
+    )
+    parser.add_argument(
+        "--open",
+        dest="open_browser",
+        action="store_true",
+        help="Open the app in a browser on launch.",
+    )
+    args = parser.parse_args()
+    main(port=args.port, share=args.share, open_browser=args.open_browser)
