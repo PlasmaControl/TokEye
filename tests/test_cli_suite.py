@@ -19,6 +19,17 @@ def test_elmspec_defaults():
     assert args.png is False
 
 
+def test_alfvenspec_defaults():
+    args = build_parser().parse_args(["alfvenspec", "input.npy"])
+    assert args.command == "alfvenspec"
+    assert args.model == "ae_tf_maskrcnn"
+    assert args.output_dir == "tokeye_ae"
+    assert args.score_min == 0.5
+    assert args.mean is None
+    assert args.std is None
+    assert args.save_masks is True
+
+
 def test_elmspec_missing_input_exits_2(tmp_path, capsys):
     exit_code = main(["elmspec", str(tmp_path / "nope_*.npy")])
     assert exit_code == 2
