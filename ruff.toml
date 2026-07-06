@@ -32,4 +32,14 @@ ignore = [
 # for research scripts (late imports after sys.path setup, terse one-liners, etc.)
 "scripts/**" = ["E402", "E702", "E741", "SIM115", "PTH208"]
 "src/tokeye/extra/eval/**" = ["E702"]
+# Vendored code (see PROVENANCE.md in each dir): style rules relaxed to keep
+# the upstream diff minimal; correctness rules (F821 etc.) stay active.
+"src/tokeye/modespec/classic/**" = [
+    "E", "W", "I", "UP", "C4", "FA", "ISC", "ICN", "RET", "SIM", "TID", "TC",
+    "PTH", "TD", "NPY", "F401", "F841",
+]
+"src/tokeye/eigspec/**" = [
+    "E", "W", "I", "UP", "C4", "FA", "ISC", "ICN", "RET", "SIM", "TID", "TC",
+    "PTH", "TD", "NPY", "F401", "F841", "F811",
+]
 

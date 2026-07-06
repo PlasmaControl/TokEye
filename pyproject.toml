@@ -22,6 +22,7 @@ dependencies = [
     "pydantic",
     "huggingface-hub>=0.30",
     "tqdm",
+    "pyyaml",  # tokeye.modespec.classic configs (already transitive via gradio)
 ]
 
 [project.optional-dependencies]
