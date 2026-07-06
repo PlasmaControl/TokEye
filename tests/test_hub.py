@@ -6,11 +6,54 @@ import pytest
 import torch
 import torch.nn as nn
 
-from tokeye.hub import DEFAULT_MODEL, MODEL_REGISTRY, load_model
+from tokeye.hub import (
+    DEFAULT_MODEL,
+    DEFAULT_REPO_ID,
+    MODEL_REGISTRY,
+    download_model,
+    load_model,
+    repo_for,
+)
 
 
 def test_default_model_is_registered():
     assert DEFAULT_MODEL in MODEL_REGISTRY
+
+
+def test_default_model_is_first_in_registry():
+    # _build_from_state_dict tries specs in insertion order; the U-Net must
+    # come first so its checkpoints never construct the R-CNN builder.
+    assert next(iter(MODEL_REGISTRY)) == DEFAULT_MODEL
+
+
+def test_repo_for_resolves_per_model_repo():
+    assert repo_for("big_tf_unet") == DEFAULT_REPO_ID
+    assert repo_for("ae_tf_maskrcnn") == "nc1/ae_tf_maskrcnn"
+    # Unknown names (e.g. local paths) fall back to the default repo.
+    assert repo_for("/some/local/model.pt") == DEFAULT_REPO_ID
+
+
+def test_download_model_uses_per_model_repo(monkeypatch):
+    seen = {}
+
+    def fake_hf_hub_download(repo_id, filename, **kwargs):
+        seen["repo_id"] = repo_id
+        seen["filename"] = filename
+        return "/fake/path.pt"
+
+    monkeypatch.setattr("tokeye.hub.hf_hub_download", fake_hf_hub_download)
+
+    download_model("ae_tf_maskrcnn")
+    assert seen == {
+        "repo_id": "nc1/ae_tf_maskrcnn",
+        "filename": "ae_tf_maskrcnn_251223.pt",
+    }
+
+    download_model("ae_tf_maskrcnn", repo_id="someone/else")
+    assert seen["repo_id"] == "someone/else"
+
+    download_model("big_tf_unet")
+    assert seen["repo_id"] == DEFAULT_REPO_ID
 
 
 def test_load_model_from_registry_downloads_and_loads(tmp_path, monkeypatch):
