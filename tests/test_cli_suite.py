@@ -30,6 +30,14 @@ def test_alfvenspec_defaults():
     assert args.save_masks is True
 
 
+def test_modesearch_prints_plan_and_exits_0(capsys):
+    exit_code = main(["modesearch"])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "not implemented yet" in out
+    assert "crawler" in out
+
+
 def test_elmspec_missing_input_exits_2(tmp_path, capsys):
     exit_code = main(["elmspec", str(tmp_path / "nope_*.npy")])
     assert exit_code == 2

@@ -14,7 +14,16 @@ import argparse
 import sys
 from typing import TYPE_CHECKING
 
-from tokeye.cli import alfvenspec, app, download, elmspec, example, modespec, run
+from tokeye.cli import (
+    alfvenspec,
+    app,
+    download,
+    elmspec,
+    example,
+    modesearch,
+    modespec,
+    run,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -39,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     modespec.add_subcommand(subparsers)
     elmspec.add_subcommand(subparsers)
     alfvenspec.add_subcommand(subparsers)
+    modesearch.add_subcommand(subparsers)
     return parser
 
 
