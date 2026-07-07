@@ -108,6 +108,19 @@ tokeye download big_tf_unet   # on the login node; prints the cached path
 tokeye run ... --model big_tf_unet   # on the compute node — model is already cached
 ```
 
+## Mode-analysis suite
+
+Beyond segmentation, `tokeye` bundles the analyses DIII-D researchers usually reach for separate tools to get. Each is a subcommand; `--help` on any of them shows the full flags.
+
+| Command | What it does |
+| --- | --- |
+| `tokeye modespec <config.yaml>` | Classic Mirnov mode analysis (vendored [pymodespec](src/tokeye/modespec/classic/PROVENANCE.md), the Python port of the IDL `modespec` tool): power spectrograms, matched-filter toroidal mode-number fits, per-shot mode CSVs. Data fetch needs MDSplus (GA cluster / conda-forge) or a local cache; an example config ships at `src/tokeye/modespec/classic/modes.yaml`. |
+| `tokeye elmspec INPUTS...` | ELM detection from the segmentation model's transient channel: per-event time intervals plus per-shot count, ELM frequency (with `--fs`), and duty cycle, written to `elm_events.csv` / `elm_summary.csv`. |
+| `tokeye alfvenspec INPUTS...` | Alfvén-eigenmode detection with the `ae_tf_maskrcnn` instance model: per-detection boxes/scores (`ae_detections.csv`) and instance masks. Wide spectrograms are processed in training-width windows automatically. |
+| `tokeye modesearch` | Design stage — prints the plan for a searchable database of detected modes. |
+
+The suite roadmap (including the next-generation `modespec --engine deep` and the `eigspec` modal-identification port) lives in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Web app guide
 
 `tokeye app` (or `python -m tokeye.app`) launches a Gradio interface with three tabs:
@@ -152,11 +165,12 @@ This creates a `.venv/`; activate it with `source .venv/bin/activate`, or prefix
 
 ## Models
 
-| Registry name | HF file | Description |
-| --- | --- | --- |
-| `big_tf_unet` | `big_tf_unet_251210.pt` | Transformer U-Net trained on multiscale (multiwindow, multihop) spectrograms. |
+| Registry name | HF repo | HF file | Description |
+| --- | --- | --- | --- |
+| `big_tf_unet` | [`nc1/big_tf_unet`](https://huggingface.co/nc1/big_tf_unet) | `big_tf_unet_251210.pt` | Transformer U-Net trained on multiscale (multiwindow, multihop) spectrograms. |
+| `ae_tf_maskrcnn` | `nc1/ae_tf_maskrcnn` | `ae_tf_maskrcnn_251223.pt` | Mask R-CNN instance detector for Alfvén-eigenmode activity (used by `tokeye alfvenspec`). |
 
-Weights are hosted on [Hugging Face](https://huggingface.co/nc1/big_tf_unet) and download automatically the first time a registry name is used (cached in `~/.cache/huggingface`). Override the source repo with the `TOKEYE_HF_REPO` environment variable.
+Weights download automatically the first time a registry name is used (cached in `~/.cache/huggingface`). Override the default repo with the `TOKEYE_HF_REPO` environment variable (per-model repos are fixed in the registry).
 
 To use a local checkpoint instead, put `.pt`/`.pt2` files in a `model/` directory (picked up by the app's model dropdown) or pass a path directly via `--model PATH`.
 

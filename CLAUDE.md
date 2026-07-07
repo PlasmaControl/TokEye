@@ -24,6 +24,12 @@ tokeye run "shots/*.npy" --output-dir results  # batch inference
 tokeye download big_tf_unet                    # pre-fetch weights, print cache path
 tokeye example                                 # write a synthetic demo signal
 
+# Mode-analysis suite
+tokeye modespec modes.yaml       # classic Mirnov mode-number analysis (vendored pymodespec)
+tokeye elmspec "shots/*.npy"     # ELM events from the transient channel
+tokeye alfvenspec "shots/*.npy"  # Alfvén-eigenmode boxes/masks (ae_tf_maskrcnn)
+tokeye modesearch                # mode database — design stage, prints the plan
+
 # Lint
 uv run ruff check .
 
@@ -39,9 +45,11 @@ Source code lives in `src/tokeye/` (installed as `tokeye` package via `uv_build`
 
 ### Models (`models/`)
 Three model families, each with a `model_*.py` and `config_*.py`:
-- **big_tf_unet** — primary transformer U-Net for spectrogram segmentation
-- **ae_tf_maskrcnn** — alternative Mask R-CNN approach
-- **ae_tf_boxrcnn** — alternative Box R-CNN approach
+- **big_tf_unet** — primary transformer U-Net for spectrogram segmentation (HF: `nc1/big_tf_unet`)
+- **ae_tf_maskrcnn** — Mask R-CNN instance detector, used by `tokeye alfvenspec` (HF: `nc1/ae_tf_maskrcnn`)
+- **ae_tf_boxrcnn** — alternative Box R-CNN approach (not registered, no weights)
+
+`hub.MODEL_REGISTRY` order is load-bearing: `_build_from_state_dict` probes specs in insertion order, so `big_tf_unet` must stay first. `ModelSpec.repo_id` overrides `DEFAULT_REPO_ID` per model.
 
 Shared building blocks in `models/modules/`: `unet.py` (base U-Net), `nn.py` (layers), `bsn.py` (boundary segmentation network).
 
@@ -53,7 +61,14 @@ Gradio web interface launched via `tokeye app` (console script) or `python -m to
 - **Annotate** (`app/tabs/annotate.py`) — manual labeling interface
 - **Utilities** (`app/tabs/utilities.py`) — miscellaneous tools
 
-Shared core modules (used by both the app and the `tokeye` CLI) live directly under `src/tokeye/`: `hub.py` (model registry + Hugging Face auto-download), `transforms.py` (STFT), `inference.py` (model inference), `api.py` (the `TokEye` class — public Python API, lazily exported from the package root), `batch.py` (headless batch runner), `examples.py` (synthetic demo signal), `cli.py` (the `tokeye` console entry point).
+Shared core modules (used by both the app and the `tokeye` CLI) live directly under `src/tokeye/`: `hub.py` (model registry + Hugging Face auto-download), `transforms.py` (STFT), `inference.py` (model inference, U-Net contract), `api.py` (the `TokEye` class — public Python API, lazily exported from the package root), `batch.py` (headless batch runner), `examples.py` (synthetic demo signal), `cli/` (the `tokeye` console entry point — one module per subcommand, heavy imports deferred into `_handle` functions).
+
+### Mode-analysis suite
+- `modespec/classic/` — **vendored** pymodespec (classic Mirnov mode-number analysis); `modespec/deep/` reserves the next-gen single-chord engine (sibling `integratedmode` project). Vendored code policy: minimal-touch, style rules relaxed in `ruff.toml`, every local change listed in the directory's `PROVENANCE.md`.
+- `elmspec/` — ELM event extraction from the transient channel (`events.py` is pure numpy, model plumbing in the CLI handler).
+- `alfvenspec/` — R-CNN detection wrapper (`inference.py`; list-of-images contract, windowed processing for wide spectrograms).
+- `modesearch/` — design-stage scaffold only (mode database vision).
+- Suite roadmap and future ideas: `docs/ROADMAP.md`.
 
 ### Training (`training/`)
 Multi-step data pipelines (step_0 through step_7) for preparing training data from raw signals. Two regimes: `big_tf_unet/` (original) and `big_tf_unet_multiscale/` (enhanced). Uses PyTorch Lightning.
