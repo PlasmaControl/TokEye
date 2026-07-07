@@ -1,0 +1,121 @@
+# Complete defaults for the big_tf_unet_2 single-scale pipeline.
+# A run's run.yaml is MERGED ON TOP of this file (OmegaConf.merge), so run.yaml
+# only ever needs the keys being overridden. Values of "auto" are resolved once
+# per run and recorded (with their resolved values) in resolved_params.yaml.
+
+run:
+  nfft: 512
+  hop: 128
+  allow_custom_scale: false   # true permits (nfft, hop) outside the canonical grid
+
+modalities:
+  ece: { input_key: ece, channels: [8, 12, 16, 20, 24, 28, 32, 36] }
+  mhr: { input_key: mhr, channels: [3, 4, 5, 6] }
+  bes: { input_key: bes, channels: [26, 28, 30, 32, 34, 36, 38, 40] }
+  # co2 disabled: the preserved co2 top-up data is all-zero for every shot/chord.
+  # Re-enable once co2 is re-fetched with real signal.
+  # co2: { input_key: co2, channels: [0, 1, 2, 3] }
+
+extraction:
+  subseq_len: 66000           # fixed physical window (132 ms @ 500 kHz) at every scale
+  preemphasis_coeff: 0.99
+  fs_khz: 500
+  target_rate_khz: 500        # intake resamples every modality to this
+  ip_threshold: 0.1
+  max_windows_per_shot_precap: 60
+
+window_filter:
+  enabled: true
+  weights: model/big_tf_unet_251210_weights.pt
+  max_windows_per_shot: 25
+  activity_threshold: 0.5     # sigmoid cutoff for an "active" pixel
+  min_activity: 0.0005        # min active-pixel fraction; drops near-empty windows
+  mean: auto                  # per-modality log-magnitude stats (never global)
+  std: auto
+
+baseline:
+  method: fabc
+  lam: auto                   # auto = 1e6 * (F/513)^4 — same physical smoothing per scale
+  edge_method: energy         # energy-level edge-bin detection (or "gradient" legacy)
+  edge_k: 2.0                 # mask contiguous edge bins with |log E(f) - log M| > log k
+  edge_max_fraction: 0.15     # cap masked bins per edge
+  gradient_threshold: 0.5     # only used when edge_method == "gradient"
+
+denoise:
+  representation: complex     # complex | magnitude
+  normalization: robust_asinh # robust_asinh | zscore (legacy)
+  a: 1.0                      # N_a compression scale at the denoiser input
+  first_layer_size: 32
+  num_layers: auto            # auto = min(5, floor(log2(min(F, T) / 4)))
+  batch_size: auto            # auto = base_batch_size * (513*516) / (F_pad*T_pad)
+  base_batch_size: 8
+  precision: "32-true"
+  max_epochs: 30
+  tv_patience: 3
+  num_workers: 8
+
+labels:
+  knee_sensitivity: 1.0       # kneed S: larger = later/more conservative knee
+  delta: 0.0                  # additive threshold offset, in robust-sigma units
+  fallback_frac: 0.02         # survival quantile used when no knee is found
+  min_size: auto
+  min_size_fraction: 0.0002
+  remove_bottom_rows: auto
+  remove_top_rows: auto
+  row_removal_fraction_bottom: 0.01
+  row_removal_fraction_top: 0.004
+
+dataset:
+  a: 3.0                      # N_a compression scale at the segmenter input
+  stats_windows: 100          # windows sampled for per-modality robust stats
+
+refine:
+  model_trust: 0.5            # lambda in q = (1-lambda)*y0 + lambda*p_oof; 0 = no refine
+  n_folds: 5
+  first_layer_size: 32
+  num_layers: auto
+  batch_size: auto
+  base_batch_size: 16
+  precision: "32-true"
+  max_epochs: 200
+  loss_type: symmetric_bce_dice
+  num_workers: 8
+
+final:
+  first_layer_size: 32
+  num_layers: auto
+  batch_size: auto
+  base_batch_size: 28
+  precision: "32-true"
+  max_epochs: 100
+  loss_type: bce      # plain BCE — the soft target q is already smoothed
+  gamma: 2.0          # only used by focal-family loss_types
+  num_workers: 8
+
+eval:
+  dataset_dir: data/eval/TJII2021
+  n_thresholds: 50            # threshold sweep resolution for the F1-optimal point
+
+paths:
+  shots_path: data/autoprocess/settings/shots.txt
+  foundation_dir: data/autoprocess/foundation
+
+slurm:
+  account: null
+  cpu_partition: null         # null = scheduler default routing (CPU work, no gres)
+  gpu_partition: gpu
+  cpu_cpus: 42
+  cpu_mem: 43G
+  cpu_time: "08:00:00"
+  gpu_cpus: 16
+  gpu_mem: 48G
+  gpu_time: "18:00:00"
+
+smoke:
+  enabled: false
+  n_shots: 2
+  max_windows_per_shot: 2
+  n_folds: 2
+  max_epochs: 1
+  refine_max_epochs: 1
+  final_max_epochs: 1
