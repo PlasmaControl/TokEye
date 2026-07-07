@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "tokeye"
-version = "0.11.0"
+version = "0.12.0"
 description = "Automatic classification and localization of fluctuating signals in spectrograms"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -22,9 +22,15 @@ dependencies = [
     "pydantic",
     "huggingface-hub>=0.30",
     "tqdm",
+    "pyyaml",  # tokeye.modespec.classic configs (already transitive via gradio)
 ]
 
 [project.optional-dependencies]
+# Optional extra for tokeye.eigspec clustering (sklearn imports are
+# function-local upstream, so the base package imports without it).
+eigspec = [
+    "scikit-learn",
+]
 # Mirror of the `train` dependency-group so consumers can `pip install tokeye[train]`.
 # The training/ablation pipeline modules (src/tokeye/training/) import these; the
 # core package and the Gradio app do not require them.

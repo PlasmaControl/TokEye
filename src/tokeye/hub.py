@@ -16,6 +16,8 @@ import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
 
+from .models.ae_tf_maskrcnn.config_ae_tf_maskrcnn import AETFMaskConfig
+from .models.ae_tf_maskrcnn.model_ae_tf_maskrcnn import AETFMaskModel
 from .models.big_tf_unet.config_big_tf_unet import BigTFUNetConfig
 from .models.big_tf_unet.model_big_tf_unet import BigTFUNetModel
 
@@ -35,15 +37,33 @@ class ModelSpec:
     name: str
     filename: str  # file in the HF repo
     builder: Callable[[], nn.Module]
+    repo_id: str | None = None  # None -> DEFAULT_REPO_ID (TOKEYE_HF_REPO override)
 
 
+# Insertion order matters: _build_from_state_dict tries specs in order, so the
+# default segmentation model must stay first — U-Net checkpoints should never
+# construct the (much slower) R-CNN builder.
 MODEL_REGISTRY: dict[str, ModelSpec] = {
     "big_tf_unet": ModelSpec(
         "big_tf_unet",
         "big_tf_unet_251210.pt",
         lambda: BigTFUNetModel(BigTFUNetConfig()),
     ),
+    "ae_tf_maskrcnn": ModelSpec(
+        "ae_tf_maskrcnn",
+        "ae_tf_maskrcnn_251223.pt",
+        lambda: AETFMaskModel(AETFMaskConfig(weights=None)),
+        repo_id="nc1/ae_tf_maskrcnn",
+    ),
 }
+
+
+def repo_for(name: str) -> str:
+    """Hugging Face repo a model name resolves to (for error messages)."""
+    spec = MODEL_REGISTRY.get(str(name))
+    if spec is not None and spec.repo_id is not None:
+        return spec.repo_id
+    return DEFAULT_REPO_ID
 
 
 def resolve_device(device: str = "auto") -> str:
@@ -59,7 +79,7 @@ def download_model(name: str = DEFAULT_MODEL, repo_id: str | None = None) -> Pat
         raise ValueError(
             f"Unknown model {name!r}; valid names: {sorted(MODEL_REGISTRY)}"
         ) from exc
-    resolved_repo_id = repo_id or DEFAULT_REPO_ID
+    resolved_repo_id = repo_id or spec.repo_id or DEFAULT_REPO_ID
     return Path(hf_hub_download(resolved_repo_id, spec.filename))
 
 

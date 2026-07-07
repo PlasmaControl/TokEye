@@ -42,15 +42,33 @@ import torch.nn as nn
 from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError, LocalTokenNotFoundError
 
-from tokeye.hub import DEFAULT_MODEL, DEFAULT_REPO_ID, MODEL_REGISTRY
+from tokeye.hub import DEFAULT_MODEL, MODEL_REGISTRY, repo_for
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-_PROBE_SHAPE = (1, 1, 64, 64)
+
+def _probe_segmentation(model: nn.Module) -> None:
+    """Forward pass for the (B, 1, H, W) -> (B, 2, H, W) U-Net contract."""
+    model(torch.randn(1, 1, 64, 64))
 
 
-def verify_checkpoint(path: Path, builder: Callable[[], nn.Module]) -> None:
+def _probe_rcnn(model: nn.Module) -> None:
+    """Forward pass for the torchvision R-CNN list-of-images contract."""
+    model([torch.randn(3, 64, 64)])
+
+
+_PROBES: dict[str, Callable[[nn.Module], None]] = {
+    "big_tf_unet": _probe_segmentation,
+    "ae_tf_maskrcnn": _probe_rcnn,
+}
+
+
+def verify_checkpoint(
+    path: Path,
+    builder: Callable[[], nn.Module],
+    probe: Callable[[nn.Module], None] = _probe_segmentation,
+) -> None:
     """Refuse (via ``SystemExit``) to proceed unless ``path`` is a good checkpoint.
 
     "Good" means: a weights-only state dict that loads strictly into a fresh
@@ -86,7 +104,7 @@ def verify_checkpoint(path: Path, builder: Callable[[], nn.Module]) -> None:
     model.eval()
     with torch.no_grad():
         try:
-            model(torch.randn(*_PROBE_SHAPE))
+            probe(model)
         except Exception as exc:
             raise SystemExit(
                 f"error: {path} loaded but failed a forward-pass sanity "
@@ -123,8 +141,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--repo",
-        default=DEFAULT_REPO_ID,
-        help="Target Hugging Face Hub repo id (default: %(default)s).",
+        default=None,
+        help="Target Hugging Face Hub repo id (default: the model's registry repo).",
     )
     parser.add_argument(
         "--create",
@@ -138,11 +156,13 @@ def main() -> int:
     args = build_parser().parse_args()
     spec = MODEL_REGISTRY[args.model]
     file_path = _resolve_file(args.model, args.file)
+    if args.repo is None:
+        args.repo = repo_for(args.model)
 
     if not file_path.exists():
         raise SystemExit(f"error: checkpoint not found: {file_path}")
 
-    verify_checkpoint(file_path, spec.builder)
+    verify_checkpoint(file_path, spec.builder, _PROBES.get(args.model, _probe_segmentation))
 
     api = HfApi()
     try:

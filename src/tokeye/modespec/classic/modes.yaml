@@ -1,0 +1,59 @@
+# modes.yaml — declare which shots to analyze and how.
+#
+# `generate_modes.py` reads this file, runs the modespec pipeline on each shot,
+# and writes detected mode events to <output_dir>/modes.csv (+ a figure per shot).
+#
+#   pixi run modes modes.yaml
+#
+# Each shot inherits everything in `defaults`; list a key under a shot to override
+# it. To analyze a shot in two frequency bands, list it twice with different
+# f_min_khz/f_max_khz.
+
+output_dir: mode_analysis      # outputs land here (already gitignored)
+atlas: atlas.gat.com           # MDSplus server
+
+defaults:
+  array: toroidal              # toroidal (14-probe n-analysis) | poloidal (31-probe m-analysis)
+  integrated: false            # false = B-dot signals (200 kHz) | true = integrated B (~20 kHz)
+  t_min_ms: null               # optional crop of the signal time range (null = full shot)
+  t_max_ms: null
+
+  # spectrogram
+  dt_window_ms: 4.0            # FFT window length
+  overlap_frac: 0.75           # window overlap fraction (0-1)
+  f_min_khz: 5.0               # analysis band, low edge
+  f_max_khz: 50.0              # analysis band, high edge
+  f_smooth_khz: 1.0            # frequency smoothing bandwidth (0 disables)
+  n_range: [1, 5]              # [n_min, n_max] toroidal mode numbers to test
+
+  # detection (what counts as a "mode")
+  coherence_min: null          # null -> use the 95% confidence level (result['c95'])
+  amp_min_G: 0.5               # min mode amplitude floor; units are G if integrated=true,
+                               #   else G/s (B-dot) where values are large -> effectively
+                               #   coherence-only. Raise it to thin out B-dot detections.
+  merge_gap_ms: 2.0            # bridge sub-threshold gaps shorter than this (de-fragment)
+  min_duration_ms: 5.0         # discard events shorter than this
+  make_figure: true            # also save <shot>_modespec.png
+
+shots:
+  - shot: 170008
+  - shot: 170660
+  - shot: 170670
+  - shot: 170672
+  - shot: 170677
+  - shot: 170679
+  - shot: 170796
+  - shot: 175987
+  - shot: 176054
+  - shot: 178631
+  - shot: 180634
+  - shot: 184847
+  - shot: 184859
+  - shot: 184902
+  - shot: 184964
+  - shot: 185781
+  - shot: 190904
+  - shot: 193273
+  - shot: 193277
+  - shot: 193280
+  - shot: 193281

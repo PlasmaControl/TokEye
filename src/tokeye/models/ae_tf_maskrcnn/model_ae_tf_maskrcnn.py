@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-from torchvision.models.detection import (
-    MaskRCNN_ResNet50_FPN_V2_Weights,
-    maskrcnn_resnet50_fpn_v2,
-)
+from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
@@ -18,9 +15,10 @@ class AETFMaskModel(nn.Module):
         super().__init__()
         self.config = config
 
-        model = maskrcnn_resnet50_fpn_v2(
-            weights=MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
-        )
+        # config.weights=None skips the COCO download entirely; pass
+        # AETFMaskConfig(weights=None) when a checkpoint will overwrite
+        # every parameter anyway (e.g. the hub registry builder).
+        model = maskrcnn_resnet50_fpn_v2(weights=config.weights)
         in_features = model.roi_heads.box_predictor.cls_score.in_features  # type: ignore[union-attr]
 
         model.roi_heads.box_predictor = FastRCNNPredictor(

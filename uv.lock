@@ -2707,7 +2707,7 @@ wheels = [
 
 [[package]]
 name = "tokeye"
-version = "0.11.0"
+version = "0.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "gradio" },
@@ -2716,6 +2716,7 @@ dependencies = [
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "scipy" },
     { name = "tables" },
     { name = "torch" },
@@ -2726,6 +2727,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+eigspec = [
+    { name = "scikit-learn" },
+]
 train = [
     { name = "h5py" },
     { name = "ipykernel" },
@@ -2782,7 +2786,9 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'train'" },
     { name = "pybaselines", marker = "extra == 'train'" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "scikit-image", marker = "extra == 'train'" },
+    { name = "scikit-learn", marker = "extra == 'eigspec'" },
     { name = "scikit-learn", marker = "extra == 'train'" },
     { name = "scipy" },
     { name = "tables" },
@@ -2796,7 +2802,7 @@ requires-dist = [
     { name = "tqdm" },
     { name = "wavio", marker = "extra == 'train'" },
 ]
-provides-extras = ["train"]
+provides-extras = ["eigspec", "train"]
 
 [package.metadata.requires-dev]
 dev = [
