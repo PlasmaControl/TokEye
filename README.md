@@ -9,7 +9,7 @@
 TokEye is a open-source Python-based application for automatic classification and localization of fluctuating signals.
 It is designed to be used in the context of plasma physics, but can be used for any type of fluctuating signal.
 
-Check out [this poster from APS DPP 2025](assets/aps_dpp_2025.pdf) or [this preprint](https://arxiv.org/abs/2602.20317) for more information.
+Check out [this preprint](https://arxiv.org/abs/2602.20317) for more information.
 
 ## Example Demonstration
 <video src="https://github.com/user-attachments/assets/03560db6-1941-483e-b9d7-706c164833f7" autoplay loop muted playsinline controls width="100%"></video>
