@@ -40,6 +40,6 @@ ignore = [
 ]
 "src/tokeye/eigspec/**" = [
     "E", "W", "I", "UP", "C4", "FA", "ISC", "ICN", "RET", "SIM", "TID", "TC",
-    "PTH", "TD", "NPY", "F401", "F841", "F811",
+    "PTH", "TD", "NPY", "F401", "F841", "F811", "F541",
 ]
 

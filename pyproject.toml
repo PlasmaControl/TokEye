@@ -26,6 +26,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional extra for tokeye.eigspec clustering (sklearn imports are
+# function-local upstream, so the base package imports without it).
+eigspec = [
+    "scikit-learn",
+]
 # Mirror of the `train` dependency-group so consumers can `pip install tokeye[train]`.
 # The training/ablation pipeline modules (src/tokeye/training/) import these; the
 # core package and the Gradio app do not require them.

@@ -2727,6 +2727,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+eigspec = [
+    { name = "scikit-learn" },
+]
 train = [
     { name = "h5py" },
     { name = "ipykernel" },
@@ -2785,6 +2788,7 @@ requires-dist = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "scikit-image", marker = "extra == 'train'" },
+    { name = "scikit-learn", marker = "extra == 'eigspec'" },
     { name = "scikit-learn", marker = "extra == 'train'" },
     { name = "scipy" },
     { name = "tables" },
@@ -2798,7 +2802,7 @@ requires-dist = [
     { name = "tqdm" },
     { name = "wavio", marker = "extra == 'train'" },
 ]
-provides-extras = ["train"]
+provides-extras = ["eigspec", "train"]
 
 [package.metadata.requires-dev]
 dev = [

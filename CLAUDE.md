@@ -28,6 +28,7 @@ tokeye example                                 # write a synthetic demo signal
 tokeye modespec modes.yaml       # classic Mirnov mode-number analysis (vendored pymodespec)
 tokeye elmspec "shots/*.npy"     # ELM events from the transient channel
 tokeye alfvenspec "shots/*.npy"  # Alfvén-eigenmode boxes/masks (ae_tf_maskrcnn)
+tokeye eigspec                   # interactive modal ID / SSI (vendored eigspec port)
 tokeye modesearch                # mode database — design stage, prints the plan
 
 # Lint
@@ -67,6 +68,7 @@ Shared core modules (used by both the app and the `tokeye` CLI) live directly un
 - `modespec/classic/` — **vendored** pymodespec (classic Mirnov mode-number analysis); `modespec/deep/` reserves the next-gen single-chord engine (sibling `integratedmode` project). Vendored code policy: minimal-touch, style rules relaxed in `ruff.toml`, every local change listed in the directory's `PROVENANCE.md`.
 - `elmspec/` — ELM event extraction from the transient channel (`events.py` is pure numpy, model plumbing in the CLI handler).
 - `alfvenspec/` — R-CNN detection wrapper (`inference.py`; list-of-images contract, windowed processing for wide spectrograms).
+- `eigspec/` — **vendored** eigspec MATLAB-toolbox port (modal ID, SSI, random projection); sklearn-dependent clustering behind the `eigspec` extra.
 - `modesearch/` — design-stage scaffold only (mode database vision).
 - Suite roadmap and future ideas: `docs/ROADMAP.md`.
 

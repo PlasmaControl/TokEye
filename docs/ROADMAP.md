@@ -14,16 +14,17 @@ collects future ideas worth building.
 | modespec (deep) | `tokeye modespec --engine deep` | reserved — single-chord CO2 n-inference, developed in the sibling `integratedmode` project |
 | elmspec | `tokeye elmspec INPUTS...` | shipped — ELM events from the transient channel |
 | alfvenspec | `tokeye alfvenspec INPUTS...` | shipped, deliberately thin — ae_tf_maskrcnn boxes/masks; awaiting EP-group requirements |
-| eigspec | — | gated — vendoring blocked until upstream relicenses GPL-3 → MIT; also needs import fixes (see task notes) |
+| eigspec | `tokeye eigspec [SCRIPT]` | shipped — vendored (MIT) with import + SSI numeric fixes (see its PROVENANCE.md; fixes worth upstreaming) |
 | modesearch | `tokeye modesearch` | design stage — prints the plan |
 
 ## Near-term engineering
 
 - **Upload `ae_tf_maskrcnn` weights to `nc1/ae_tf_maskrcnn`** (registry entry
   and upload-script probe are in place; needs a write-scoped HF token).
-- **Vendor eigspec** once relicensed: modal identification, stochastic
-  subspace ID, random-projection spectral analysis — the system-ID view of
-  mode activity that complements matched-filter fits.
+- **Upstream the eigspec fixes**: the vendored copy fixes two numeric bugs in
+  `covariance_driven_ssi` (Hankel channel-interleave, spurious transpose) plus
+  import-breaking syntax errors — push these back to PlasmaControl/eigspec and
+  audit the sibling SSI variants (`ssi1ca`, `ssicca`) for the same layout bug.
 - **AE weights provenance**: score calibration and a labeled validation set
   for alfvenspec before promoting it beyond "runs the model".
 
