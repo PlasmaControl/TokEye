@@ -1179,6 +1179,19 @@ wheels = [
 ]
 
 [[package]]
+name = "kneed"
+version = "0.8.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/72/64/4bb8f8a7a4627b585a66d5bec0c9b30ae5b39a4caea1775c8bfb3fb3f4cf/kneed-0.8.6.tar.gz", hash = "sha256:65b22727c623661701f15edf057f2e6c73e2b1ad4e68cd9ca4291675c318b5ef", size = 13161, upload-time = "2026-03-20T21:01:51.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/cd/23c89d53c36028bccb39f55aa5dd24c4bdaab76c4d556ad43dc8cf026918/kneed-0.8.6-py3-none-any.whl", hash = "sha256:3412e7b70bce07717386d24fab37f0f985968d1b85ea0c749a6b98caccaf65ec", size = 10797, upload-time = "2026-03-20T21:01:50.87Z" },
+]
+
+[[package]]
 name = "lazy-loader"
 version = "0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2735,11 +2748,13 @@ train = [
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "joblib" },
+    { name = "kneed" },
     { name = "lightning" },
     { name = "pandas" },
     { name = "pybaselines" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
+    { name = "threadpoolctl" },
     { name = "tifffile" },
     { name = "torchaudio" },
     { name = "torchmetrics" },
@@ -2760,11 +2775,13 @@ train = [
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "joblib" },
+    { name = "kneed" },
     { name = "lightning" },
     { name = "pandas" },
     { name = "pybaselines" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
+    { name = "threadpoolctl" },
     { name = "tifffile" },
     { name = "torchaudio" },
     { name = "torchmetrics" },
@@ -2779,6 +2796,7 @@ requires-dist = [
     { name = "ipykernel", marker = "extra == 'train'" },
     { name = "ipywidgets", marker = "extra == 'train'" },
     { name = "joblib", marker = "extra == 'train'" },
+    { name = "kneed", marker = "extra == 'train'" },
     { name = "lightning", marker = "extra == 'train'" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -2792,6 +2810,7 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'train'" },
     { name = "scipy" },
     { name = "tables" },
+    { name = "threadpoolctl", marker = "extra == 'train'" },
     { name = "tifffile", marker = "extra == 'train'" },
     { name = "torch" },
     { name = "torchaudio", marker = "extra == 'train'" },
@@ -2818,11 +2837,13 @@ train = [
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "joblib" },
+    { name = "kneed" },
     { name = "lightning" },
     { name = "pandas" },
     { name = "pybaselines" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
+    { name = "threadpoolctl" },
     { name = "tifffile" },
     { name = "torchaudio" },
     { name = "torchmetrics" },

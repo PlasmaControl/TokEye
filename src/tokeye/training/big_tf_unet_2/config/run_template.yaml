@@ -1,0 +1,36 @@
+# Run configuration — {{RUN_ID}}
+#
+# This is the ONLY file you edit. Everything not listed here uses the pipeline
+# defaults (src/tokeye/training/big_tf_unet_2/config/defaults.yaml).
+#
+# Workflow for every step: run it, look at the gallery in the notebook, and if
+# the pictures look wrong, change the relevant knob below, clear the step, and
+# run it again. "auto" means the pipeline computes a suggested value from your
+# data — the notebook's suggest() cell shows you what it picked.
+
+run:
+  nfft: {{NFFT}}        # STFT window size  (LOCKED once step_1 has run)
+  hop: {{HOP}}          # STFT hop length   (LOCKED once step_1 has run)
+
+# --- step_2 baseline removal -------------------------------------------------
+baseline:
+  lam: auto             # baseline stiffness; bigger = smoother baseline
+  edge_k: 2.0           # edge-bin cut aggressiveness; bigger = fewer bins cut
+
+# --- step_3 denoiser ---------------------------------------------------------
+denoise:
+  max_epochs: 30
+
+# --- step_4 labels (the mask thresholds) --------------------------------------
+labels:
+  knee_sensitivity: 1.0 # bigger = higher threshold = fewer labeled pixels
+  delta: 0.0            # extra threshold offset in noise-sigma units
+  min_size_fraction: 0.0002  # smallest object kept, as fraction of image area
+
+# --- step_6 refine -----------------------------------------------------------
+refine:
+  model_trust: 0.5      # 0 = trust the step_4 labels, 1 = trust the model
+
+# --- smoke mode: tiny 2-shot run to sanity-check the whole pipeline -----------
+smoke:
+  enabled: false
