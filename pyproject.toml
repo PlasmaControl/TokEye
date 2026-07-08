@@ -9,31 +9,26 @@ description = "Automatic classification and localization of fluctuating signals 
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "gradio",
     "numpy",
     "scipy",
     "matplotlib",
     "torch",
-    "torchcodec",
     "torchvision",
     "torchinfo",
     "omegaconf",
-    "tables",
     "pydantic",
     "huggingface-hub>=0.30",
     "tqdm",
-    "pyyaml",  # tokeye.modespec.classic configs (already transitive via gradio)
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
-# Optional extra for tokeye.eigspec clustering (sklearn imports are
-# function-local upstream, so the base package imports without it).
+app = [
+    "gradio",
+]
 eigspec = [
     "scikit-learn",
 ]
-# Mirror of the `train` dependency-group so consumers can `pip install tokeye[train]`.
-# The training/ablation pipeline modules (src/tokeye/training/) import these; the
-# core package and the Gradio app do not require them.
 train = [
     "ipykernel",
     "ipywidgets",
@@ -48,6 +43,7 @@ train = [
     "pybaselines",
     "tifffile",
     "pandas",
+    "tables",
     "kneed",
     "threadpoolctl",
 ]
@@ -96,6 +92,7 @@ train = [
     "pybaselines",
     "tifffile",
     "pandas",
+    "tables",
 
     "kneed",
     "threadpoolctl",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,7 +27,17 @@ def add_subcommand(subparsers: argparse._SubParsersAction) -> None:
 
 
 def _handle(args: argparse.Namespace) -> int:
-    from tokeye.app.__main__ import main as app_main
+    try:
+        from tokeye.app.__main__ import main as app_main
+    except ImportError as exc:
+        print(
+            "`tokeye app` needs the 'app' extra (gradio), which is not installed.\n"
+            "Install it with:\n"
+            "    pip install 'tokeye[app]'      # or:  uv sync --extra app\n"
+            f"(underlying import error: {exc})",
+            file=sys.stderr,
+        )
+        return 1
 
     app_main(port=args.port, share=args.share, open_browser=args.open_browser)
     return 0

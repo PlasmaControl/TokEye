@@ -21,15 +21,32 @@ Expected processing time:
 ## Quickstart
 
 ```bash
-pip install tokeye   # or: uv tool install tokeye
-tokeye app           # opens web app on http://localhost:7860
+pip install 'tokeye[app]'   # web app + CLI   (or: uv tool install 'tokeye[app]')
+tokeye app                  # opens web app on http://localhost:7860
 ```
 
 - The default model downloads automatically from Hugging Face on first use (~30 MB).
 - No data on hand? Click "Load Example Signal" in the app, or generate one from the shell with `tokeye example`.
 - `pip install` requires Python >= 3.13; `uvx`/`uv tool install` fetch a compatible Python automatically.
 
-Zero-install trial: `uvx tokeye app` runs the app without installing anything into your environment.
+Zero-install trial: `uvx 'tokeye[app]' app` runs the app without installing anything into your environment.
+
+### Install variants
+
+Heavy dependencies are split into extras so you download only what you use:
+
+| Install | What you get |
+| --- | --- |
+| `pip install tokeye` | Python API + CLI (`tokeye run`, mode-analysis suite). Smallest core install. |
+| `pip install 'tokeye[app]'` | + the Gradio web app (`tokeye app`). |
+| `pip install 'tokeye[train]'` | + the training/ablation pipeline. |
+| `pip install 'tokeye[eigspec]'` | + `tokeye eigspec` clustering. |
+
+**GPU vs CPU PyTorch.** A plain install pulls the default PyTorch wheel — the **CUDA (GPU) build (~2.5 GB)** on Linux. On a machine without a GPU, install the CPU wheel (~200 MB) instead:
+
+```bash
+uv pip install 'tokeye[app]' --torch-backend=cpu
+```
 
 ## Python API
 
@@ -48,7 +65,7 @@ coherent, transient = mask     # (2, H, W) sigmoid scores in [0, 1]
 
 Input is auto-detected by shape: a 1D array is treated as a raw time series (TokEye computes the spectrogram), a 2D array as a ready spectrogram. Standardization happens internally.
 
-If your 2D spectrogram is stored in **linear scale** (raw STFT magnitude/power), pass `log=True` so TokEye applies `log1p` first — the model expects log-scaled input:
+If your 2D spectrogram is stored in **linear scale** (raw STFT magnitude/power), pass `log=True` so TokEye applies `log1p` first since the model expects log-scaled input:
 
 ```python
 mask = eye(linear_spectrogram, log=True)      # per call
@@ -157,9 +174,17 @@ With more data, comes better models. Please contribute to the project!
 ```bash
 git clone git@github.com:PlasmaControl/TokEye.git
 cd TokEye
-uv sync             # core deps
-uv sync --dev       # + pytest, ruff, etc.
+uv sync                # core deps (default GPU/CUDA PyTorch on Linux)
+uv sync --extra app    # + Gradio web app (`tokeye app`)
+uv sync --dev          # + pytest, ruff, etc.
 uv sync --group train  # + training deps (lightning, h5py, etc.)
+```
+
+Additionally, run these the first time
+```bash
+uv run pre-commit install
+uv run ruff check .
+uv run pytest
 ```
 
 This creates a `.venv/`; activate it with `source .venv/bin/activate`, or prefix commands with `uv run`.
@@ -200,14 +225,6 @@ tokeye run shots/myshot.npy --output-dir results
 ```
 
 No data yet? `tokeye example` writes a synthetic demo signal you can run immediately, and the web app has a matching "Load Example Signal" button.
-
-## Development
-
-```bash
-uv sync --dev
-uv run ruff check .
-uv run pytest
-```
 
 ## Citation
 If you use this code in your research, please cite:

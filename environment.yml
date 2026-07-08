@@ -23,10 +23,9 @@ dependencies:
   - scikit-learn
   - scikit-image
   - pip
-  # Pip-only packages (not on conda or need specific versions)
+  # Pip-only packages
   - pip:
       - gradio
-      - torchcodec
       - torchinfo
       - wavio
       - lightning
