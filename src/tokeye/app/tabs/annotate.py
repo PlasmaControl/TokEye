@@ -18,11 +18,39 @@ def pil_to_numpy(img: Image.Image) -> np.ndarray:
     return np.array(img)
 
 
+def to_display_uint8(arr: np.ndarray) -> np.ndarray:
+    """Robust display normalization: floats stretched 1st-99th percentile
+    to 0-255; uint8 passthrough.
+
+    Naively casting float data to uint8 (e.g. `arr.astype(np.uint8)`) silently
+    truncates anything above 255 and clips everything else to a razor-thin
+    band near 0, which is why log-scaled spectrograms (values roughly 0-10)
+    used to render as near-black images. Percentile stretching instead maps
+    the bulk of the data across the full display range.
+    """
+    if arr.dtype == np.uint8:
+        return arr
+
+    arr = np.asarray(arr, dtype=np.float64)
+    if not np.isfinite(arr).any():
+        # All-NaN/inf input - nothing meaningful to display.
+        return np.zeros(arr.shape, dtype=np.uint8)
+
+    lo, hi = np.nanpercentile(arr, [1, 99])
+    if not hi > lo:
+        # Flat (or degenerate) image - nothing to stretch.
+        return np.zeros(arr.shape, dtype=np.uint8)
+
+    scaled = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+    scaled = np.nan_to_num(scaled, nan=0.0)  # stray NaNs render as black
+    return (scaled * 255).astype(np.uint8)
+
+
 def numpy_to_pil(arr: np.ndarray) -> Image.Image:
     """Convert numpy array to PIL Image with RGBA support."""
     # Normalize to 0-255 if needed
     if arr.dtype == np.float32 or arr.dtype == np.float64:
-        arr = (arr * 255).astype(np.uint8) if arr.max() <= 1.0 else arr.astype(np.uint8)
+        arr = to_display_uint8(arr)
     elif arr.dtype != np.uint8:
         # Clip to valid range
         arr = np.clip(arr, 0, 255).astype(np.uint8)
@@ -192,23 +220,21 @@ def create_composite_image(
 
     # Create red overlay where mask is non-zero
     if mask_arr.max() > 0:
-        # Create red overlay
-        Image.new("RGBA", composite.size, (0, 0, 0, 0))
+        width, height = composite.size
 
-        # Convert mask to PIL
-        Image.fromarray(mask_arr, mode="L")
+        # Vectorized red, ~50%-alpha overlay (replaces an O(H*W) putpixel
+        # double loop that hung for minutes on realistic image sizes).
+        overlay = np.zeros((height, width, 4), dtype=np.uint8)
+        overlay[..., 0] = 255  # red
 
-        # Create red overlay with alpha channel from mask
-        red_overlay = Image.new("RGBA", composite.size)
-        for x in range(composite.size[0]):
-            for y in range(composite.size[1]):
-                if x < mask_arr.shape[1] and y < mask_arr.shape[0]:
-                    mask_val = mask_arr[y, x]
-                    if mask_val > 0:
-                        # Red with semi-transparency
-                        red_overlay.putpixel((x, y), (255, 0, 0, 128))
-                    else:
-                        red_overlay.putpixel((x, y), (0, 0, 0, 0))
+        # Pad/crop the mask to the backdrop size instead of resizing, so
+        # out-of-bounds regions stay transparent (matches the loop this
+        # replaces, which only touched pixels within both bounds).
+        rows = min(mask_arr.shape[0], height)
+        cols = min(mask_arr.shape[1], width)
+        overlay[:rows, :cols, 3] = np.where(mask_arr[:rows, :cols] > 0, 128, 0)
+
+        red_overlay = Image.fromarray(overlay, mode="RGBA")
 
         # Composite the overlay
         composite = Image.alpha_composite(composite, red_overlay)
@@ -263,11 +289,88 @@ def save_mask_annotation(
 # ============================================================================
 
 
+def _mask_from_layers(layers: list) -> np.ndarray | None:
+    """Union, across stroke layers, of pixels with any alpha - color-agnostic.
+
+    `gr.ImageEditor` stroke layers are RGBA images that are fully transparent
+    everywhere except where the user drew, regardless of brush color. Using
+    alpha (instead of thresholding a specific channel) means red, green,
+    blue, and white strokes are all captured the same way.
+    """
+    mask_bool = None
+    for layer in layers:
+        if isinstance(layer, Image.Image):
+            layer_arr = pil_to_numpy(layer)
+        else:
+            layer_arr = np.array(layer)
+
+        if layer_arr.ndim == 3 and layer_arr.shape[2] == 4:
+            stroke = layer_arr[:, :, 3] > 0
+        elif layer_arr.ndim == 3:
+            stroke = layer_arr.max(axis=-1) > 0
+        else:
+            stroke = layer_arr > 0
+
+        mask_bool = stroke if mask_bool is None else (mask_bool | stroke)
+
+    if mask_bool is None:
+        return None
+    return (mask_bool.astype(np.uint8)) * 255
+
+
+def _mask_from_composite_diff(
+    composite, backdrop_arr: np.ndarray | None
+) -> np.ndarray:
+    """Fallback: diff the flattened composite against the (normalized)
+    backdrop, thresholding the max absolute difference across RGB channels.
+
+    Color-agnostic (unlike the old red-channel-only diff) and correct for
+    float backdrops, since both sides are normalized with the same
+    `to_display_uint8` before comparison.
+    """
+    if isinstance(composite, Image.Image):
+        modified_arr = pil_to_numpy(composite)
+    else:
+        modified_arr = np.array(composite)
+
+    if modified_arr.ndim != 3:
+        return (modified_arr > 128).astype(np.uint8) * 255
+
+    canvas_rgb = modified_arr[:, :, :3].astype(np.int16)
+
+    if backdrop_arr is None:
+        # No backdrop to diff against - just look for bright brush strokes.
+        return (canvas_rgb.max(axis=-1) > 128).astype(np.uint8) * 255
+
+    backdrop_disp = to_display_uint8(backdrop_arr)
+    if backdrop_disp.ndim == 3:
+        backdrop_disp = backdrop_disp[:, :, 0]
+
+    if backdrop_disp.shape != canvas_rgb.shape[:2]:
+        backdrop_img = Image.fromarray(backdrop_disp)
+        backdrop_img = backdrop_img.resize(
+            (canvas_rgb.shape[1], canvas_rgb.shape[0])
+        )
+        backdrop_disp = np.array(backdrop_img)
+
+    backdrop_rgb = np.stack([backdrop_disp] * 3, axis=-1).astype(np.int16)
+    diff = np.abs(canvas_rgb - backdrop_rgb).max(axis=-1)
+    return (diff > 30).astype(np.uint8) * 255
+
+
 def extract_mask_from_canvas(
     canvas_output, backdrop_arr: np.ndarray | None
 ) -> np.ndarray | None:
     """
     Extract only the mask layer from the canvas, removing the backdrop.
+
+    Priority order:
+    1. Layers-first: if `canvas_output` is a dict with non-empty `layers`,
+       the mask is the union over layers of `alpha > 0` - color-agnostic, so
+       red/green/blue/white brush strokes are all captured.
+    2. Fallback: a dict without layers (or a plain composite array) diffs
+       the composite against the normalized backdrop, thresholding the max
+       absolute difference across RGB channels.
 
     Args:
         canvas_output: Output from gr.ImageEditor
@@ -280,72 +383,54 @@ def extract_mask_from_canvas(
         return None
 
     try:
-        # Handle different output formats from ImageEditor
         if isinstance(canvas_output, dict):
-            # Try to get composite or background
+            layers = canvas_output.get("layers") or []
+            if layers:
+                mask = _mask_from_layers(layers)
+                if mask is not None:
+                    return mask
+
             composite = canvas_output.get("composite")
             if composite is None:
                 composite = canvas_output.get("background")
-
             if composite is None:
-                # Try layers
-                layers = canvas_output.get("layers", [])
-                if not layers:
-                    return None
-                composite = layers[0]
-
-            # Convert to array
-            if isinstance(composite, Image.Image):
-                modified_arr = pil_to_numpy(composite)
-            else:
-                modified_arr = np.array(composite)
+                return None
         else:
-            # Direct image
-            if isinstance(canvas_output, Image.Image):
-                modified_arr = pil_to_numpy(canvas_output)
-            else:
-                modified_arr = np.array(canvas_output)
+            composite = canvas_output
 
-        # Extract mask by comparing to backdrop or detecting drawn regions
-        # Strategy: Look for red channel intensity (user draws in red by default)
-        if modified_arr.ndim == 3:
-            # Extract red channel
-            red_channel = modified_arr[:, :, 0]
-
-            # If we have backdrop, subtract it to isolate drawings
-            if backdrop_arr is not None:
-                if backdrop_arr.ndim == 3:
-                    backdrop_red = backdrop_arr[:, :, 0]
-                else:
-                    backdrop_red = backdrop_arr
-
-                # Resize if needed
-                if backdrop_red.shape != red_channel.shape:
-                    from PIL import Image as PILImage
-
-                    backdrop_img = PILImage.fromarray(backdrop_red)
-                    backdrop_img = backdrop_img.resize(
-                        (red_channel.shape[1], red_channel.shape[0])
-                    )
-                    backdrop_red = np.array(backdrop_img)
-
-                # Difference
-                diff = red_channel.astype(np.int16) - backdrop_red.astype(np.int16)
-                mask = (diff > 30).astype(
-                    np.uint8
-                ) * 255  # Threshold for new annotations
-            else:
-                # No backdrop - just threshold red channel
-                mask = (red_channel > 128).astype(np.uint8) * 255
-        else:
-            # Grayscale - threshold directly
-            mask = (modified_arr > 128).astype(np.uint8) * 255
-
-        return mask
+        return _mask_from_composite_diff(composite, backdrop_arr)
 
     except Exception as e:
         print(f"Error extracting mask: {e}")
         return None
+
+
+def handle_save_mask(
+    canvas_output, backdrop_arr: np.ndarray | None, filename: str | None, save_fmt: str
+):
+    """Extract + save the mask, returning a status message and a value for
+    the `gr.File` download slot.
+
+    Returns:
+        (status_text, filepath) on success, or (status_text, None) on
+        failure/empty save so the download component CLEARS. (A bare
+        `gr.update()` would be gradio's skip sentinel, leaving a previous
+        successful save's file visible as a stale download link.)
+    """
+    if canvas_output is None or filename is None:
+        return "Error: No annotation to save", None
+
+    try:
+        mask_arr = extract_mask_from_canvas(canvas_output, backdrop_arr)
+        if mask_arr is None:
+            return "Error: Could not extract mask from canvas", None
+
+        filepath = save_mask_annotation(mask_arr, filename, save_fmt)
+        if filepath:
+            return f"Mask saved successfully to: {filepath}", filepath
+        return "Save failed", None
+    except Exception as e:
+        return f"Error: {str(e)}", None
 
 
 # ============================================================================
@@ -404,6 +489,9 @@ def annotate_tab():
 
                 save_mask_btn = gr.Button("Save Mask", variant="primary")
                 save_status = gr.Textbox(label="Save Status", interactive=False)
+                download_mask_file = gr.File(
+                    label="Download mask", interactive=False
+                )
 
             # Right column: Annotation canvas
             with gr.Column(scale=2):
@@ -496,23 +584,6 @@ def annotate_tab():
             ],
         )
 
-        def handle_save_mask(canvas_output, backdrop_arr, filename, save_fmt):
-            """Save only the mask, not the backdrop."""
-            if canvas_output is None or filename is None:
-                return "Error: No annotation to save"
-
-            try:
-                mask_arr = extract_mask_from_canvas(canvas_output, backdrop_arr)
-                if mask_arr is None:
-                    return "Error: Could not extract mask from canvas"
-
-                filepath = save_mask_annotation(mask_arr, filename, save_fmt)
-                if filepath:
-                    return f"Mask saved successfully to: {filepath}"
-                return "Save failed"
-            except Exception as e:
-                return f"Error: {str(e)}"
-
         save_mask_btn.click(
             fn=handle_save_mask,
             inputs=[
@@ -521,7 +592,7 @@ def annotate_tab():
                 npy_filename_state,
                 save_format,
             ],
-            outputs=[save_status],
+            outputs=[save_status, download_mask_file],
         )
 
         def handle_update_preview(canvas_output, backdrop_arr, backdrop_img_state):

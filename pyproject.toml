@@ -12,8 +12,11 @@ dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
-    "torch",
-    "torchvision",
+    # PyTorch 2.11 dropped Volta/V100 (sm_70) from its CUDA wheels; DIII-D's
+    # omega GPU partition is V100 (gres=gpu:v100). 2.10 is the last release
+    # that runs there on GPU. Lift when the deploy targets newer hardware.
+    "torch<2.11",
+    "torchvision",  # follows torch via torchvision's own exact torch pin
     "torchinfo",
     "omegaconf",
     "pydantic",
@@ -24,7 +27,9 @@ dependencies = [
 
 [project.optional-dependencies]
 app = [
-    "gradio",
+    # gradio 6 removes Image(show_download_button=...) (used in app/__main__.py)
+    # and moves theme=/css= from Blocks() to launch() — the app is 5.x-only.
+    "gradio>=5.49,<6",
 ]
 eigspec = [
     "scikit-learn",
@@ -36,7 +41,7 @@ train = [
     "wavio",
     "joblib",
     "lightning",
-    "torchaudio",
+    "torchaudio<2.11",  # match torch<2.11 (2.11 dropped its torch-version metadata)
     "torchmetrics",
     "scikit-learn",
     "scikit-image",
@@ -83,7 +88,7 @@ train = [
     "joblib",
 
     "lightning",
-    "torchaudio",
+    "torchaudio<2.11",  # match torch<2.11 (2.11 dropped its torch-version metadata)
     "torchmetrics",
 
     "scikit-learn",

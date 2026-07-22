@@ -42,7 +42,7 @@ class TestBuildParser:
         assert args.model is None  # resolved to DEFAULT_MODEL in the handler
         assert args.output_dir == "tokeye_output"
         assert args.n_fft == 1024
-        assert args.hop == 256
+        assert args.hop == 128  # training-recipe default
         assert args.keep_dc is False
         assert args.clip_low == 1.0
         assert args.clip_high == 99.0

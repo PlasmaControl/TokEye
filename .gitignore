@@ -223,3 +223,7 @@ output/
 *.npy
 *.ckpt
 *.zip
+
+# Local agent context — deliberately untracked (deleted from main in 6a11675)
+CLAUDE.md
+.DS_Store

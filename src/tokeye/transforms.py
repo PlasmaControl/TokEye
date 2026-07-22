@@ -4,7 +4,7 @@ import numpy as np
 from scipy import signal
 
 DEFAULT_N_FFT = 1024
-DEFAULT_HOP = 256  # app UI default; training recipe used 128
+DEFAULT_HOP = 128  # matches the released model's training recipe (n_fft=1024)
 DEFAULT_CLIP_DC = True
 DEFAULT_CLIP_LOW = 1.0
 DEFAULT_CLIP_HIGH = 99.0

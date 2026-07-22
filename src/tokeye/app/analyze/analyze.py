@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 from pathlib import Path
 
 import gradio as gr
 
+from tokeye import export
 from tokeye.hub import DEFAULT_MODEL, MODEL_REGISTRY
 from tokeye.transforms import (
     DEFAULT_CLIP_DC,
@@ -111,43 +113,162 @@ def wrapper_model_load(model_file):
         return None
 
 
-def ensure_model(model, model_file, signal_transform):
-    """Load the model on first use; pass an already-loaded model through.
+def wrapper_model_load_pair(model_file):
+    """Load a model and report which name is now loaded.
 
-    Skips loading entirely (returning the model state unchanged) if no signal
-    has been loaded yet: gr.Warning does not halt a .then() chain, so this
-    gate is what prevents a pointless download/warmup on a no-signal click.
+    Wraps ``wrapper_model_load`` so ``load_model_btn.click`` can populate both
+    the ``model`` and ``model_name`` states in one step — ``model_name`` is
+    what lets ``ensure_model`` later detect a dropdown change without a
+    reload. ``model_name`` is ``None`` when the load failed (mirrors
+    ``wrapper_model_load``'s "nothing loaded" degradation, reported via a
+    toast rather than an exception).
+    """
+    model = wrapper_model_load(model_file)
+    return model, (model_file if model is not None else None)
+
+
+def ensure_model(
+    model,
+    loaded_name,
+    model_file,
+    signal_transform,
+    progress=gr.Progress(),
+):
+    """Load the model if it's missing or stale; pass a fresh one through.
+
+    (Re)loads via ``wrapper_model_load`` whenever ``model is None`` (nothing
+    loaded yet, or a previous load failed) or ``loaded_name != model_file``
+    (the dropdown has changed since the last load) — this is what makes
+    switching models in the dropdown take effect on the next Analyze click,
+    instead of being silently ignored until a separate "Load Model" click.
+
+    Skips loading entirely (returning the state unchanged) if no signal has
+    been loaded yet: gr.Warning does not halt a .then() chain, so this gate
+    is what prevents a pointless download/warmup on a no-signal click.
+
+    ``progress`` must stay a trailing PLAIN (positional-or-keyword) default
+    parameter, NOT keyword-only: gradio's ``special_args()`` scan stops at
+    the first non-positional parameter, so a ``*, progress=...`` form is
+    invisible to it and the live tracker is never injected. The default
+    keeps direct/unit calls working without passing it; gradio injects the
+    tracker itself, so ``progress`` must not appear in event ``inputs``
+    lists.
     """
     if signal_transform is None:
         gr.Warning("Load a signal first (or click Load Example Signal)")
-        return model
-    if model is not None:
-        return model
-    return wrapper_model_load(model_file)
+        return model, loaded_name
+    if model is None or loaded_name != model_file:
+        progress(0.1, desc="Loading model…")
+        model = wrapper_model_load(model_file)
+        loaded_name = model_file
+    return model, loaded_name
 
 
-def wrapper_load_single(signal_directory, signal_file, transform_args):
-    """Wrapper to construct filepath from signal directory + signal file."""
-    if not signal_directory or not signal_file or transform_args is None:
+def wrapper_run_inference(signal_transform, model, progress=gr.Progress()):
+    """Run inference for the Analyze chain, with a progress step.
+
+    Thin wrapper around the core ``model_infer`` so the ``progress`` kwarg
+    stays out of that function's own (positional) API. Like ``ensure_model``,
+    ``progress`` must stay a trailing plain default parameter (not
+    keyword-only) so gradio's ``special_args()`` detects and injects it.
+    """
+    progress(0.6, desc="Running inference…")
+    return model_infer(signal_transform, model)
+
+
+def wrapper_load_single(
+    signal_directory, signal_file, n_fft, hop_length, clip_dc, clip_low, clip_high
+):
+    """Wrapper to construct filepath from signal directory + signal file.
+
+    Builds the transform args inline from the current slider values, so a
+    Load always reflects them — there's no separate "Apply Transform
+    Settings" step to forget to click.
+    """
+    if not signal_directory or not signal_file:
         return None
+    transform_args = setup_stft_transform(
+        n_fft, hop_length, clip_dc, clip_low, clip_high
+    )
     return load_single(Path(signal_directory) / signal_file, transform_args)
 
 
-def wrapper_load_multi(signal_directory, signal_1, signal_2, transform_args):
+def wrapper_load_multi(
+    signal_directory,
+    signal_1,
+    signal_2,
+    n_fft,
+    hop_length,
+    clip_dc,
+    clip_low,
+    clip_high,
+):
     """Wrapper to construct list of filepaths from signal directory + signal files."""
-    if not signal_directory or not signal_1 or not signal_2 or transform_args is None:
+    if not signal_directory or not signal_1 or not signal_2:
         return None
+    transform_args = setup_stft_transform(
+        n_fft, hop_length, clip_dc, clip_low, clip_high
+    )
     return load_multi(
         [Path(signal_directory) / signal_1, Path(signal_directory) / signal_2],
         transform_args,
     )
 
 
-def wrapper_load_example(transform_args):
-    """Wrapper to guard against missing transform state."""
-    if transform_args is None:
-        return None
+def wrapper_load_example(n_fft, hop_length, clip_dc, clip_low, clip_high):
+    """Wrapper building transform args inline for the example-signal loader."""
+    transform_args = setup_stft_transform(
+        n_fft, hop_length, clip_dc, clip_low, clip_high
+    )
     return load_example_signal(transform_args)
+
+
+def export_analysis(
+    signal_transform,
+    inference_output,
+    model_file,
+    n_fft,
+    hop_length,
+    clip_dc,
+    clip_low,
+    clip_high,
+    threshold,
+    view_mode,
+):
+    """Save the loaded spectrogram (+ mask, if inferred) as a ``.npz`` bundle.
+
+    No ``stft_meta`` is passed to :func:`tokeye.export.analysis_bundle`: this
+    tab loads arbitrary signal files with unknown sample rate, so pixel-centre
+    time/frequency axes can't be derived here.
+
+    The no-data path returns ``None`` (not ``gr.update()``, gradio's skip
+    sentinel) so the ``gr.File`` download slot CLEARS instead of leaving a
+    previous successful export visible as a stale link — same convention as
+    ``handle_save_mask`` in ``tokeye.app.tabs.annotate``.
+    """
+    if signal_transform is None:
+        gr.Warning("Load a signal first")
+        return None
+
+    params = {
+        "model": model_file,
+        "n_fft": n_fft,
+        "hop": hop_length,
+        "clip_dc": clip_dc,
+        "clip_low": clip_low,
+        "clip_high": clip_high,
+        "threshold": threshold,
+        "view_mode": view_mode,
+    }
+    bundle = export.analysis_bundle(
+        spectrogram=signal_transform,
+        mask=inference_output,
+        params=params,
+        source="analyze",
+    )
+    out_dir = Path(tempfile.mkdtemp(prefix="tokeye-export-"))
+    path = export.save_npz(out_dir / f"{export.default_stem('analysis')}.npz", bundle)
+    return str(path)
 
 
 def analyze_tab():
@@ -194,7 +315,6 @@ def analyze_tab():
                 clip_dc = gr.Checkbox(
                     value=DEFAULT_CLIP_DC, label="Remove DC (Bottom) Bin"
                 )
-                setup_tranform_stft_btn = gr.Button("Apply Transform Settings")
 
         ## Signal Directory
         signal_directory = gr.Textbox(
@@ -262,22 +382,18 @@ def analyze_tab():
                 threshold_sld = gr.Slider(0, 1, value=0.5, step=0.01, label="Threshold")
 
             analyze_btn = gr.Button("Analyze", variant="primary")
-            visualize_btn = gr.Button("Visualize")
             visualize_out = gr.Image(label="Visualization", type="pil")
+
+            save_export_btn = gr.Button("Save results (.npz)")
+            export_out = gr.File(
+                label="Download analysis (.npz)", interactive=False
+            )
 
     # State variables
     model = gr.State()
+    model_name = gr.State(None)
     signal_transform = gr.State()
     inference_output = gr.State()
-    transform_args = gr.State(
-        setup_stft_transform(
-            DEFAULT_N_FFT,
-            DEFAULT_HOP,
-            DEFAULT_CLIP_DC,
-            DEFAULT_CLIP_LOW,
-            DEFAULT_CLIP_HIGH,
-        )
-    )
 
     # Event Handling
     ## Refresh Page
@@ -296,31 +412,24 @@ def analyze_tab():
 
     ## Model
     load_model_btn.click(
-        fn=wrapper_model_load,
+        fn=wrapper_model_load_pair,
         inputs=[model_file],
-        outputs=[model],
+        outputs=[model, model_name],
     )
 
-    ## Transform
-    setup_tranform_stft_btn.click(
-        fn=setup_stft_transform,
-        inputs=[
-            n_fft,
-            hop_length,
-            clip_dc,
-            clip_low_sld,
-            clip_high_sld,
-        ],
-        outputs=[transform_args],
-    )
-
-    ## Signal
+    ## Signal — transform args are built inline from the live slider values,
+    ## so a Load always reflects them (no separate "Apply Transform Settings"
+    ## step to forget to click).
     load_single_btn.click(
         fn=wrapper_load_single,
         inputs=[
             signal_directory,
             signal_single,
-            transform_args,
+            n_fft,
+            hop_length,
+            clip_dc,
+            clip_low_sld,
+            clip_high_sld,
         ],
         outputs=[signal_transform],
     ).then(
@@ -343,7 +452,11 @@ def analyze_tab():
             signal_directory,
             signal_1,
             signal_2,
-            transform_args,
+            n_fft,
+            hop_length,
+            clip_dc,
+            clip_low_sld,
+            clip_high_sld,
         ],
         outputs=[signal_transform],
     ).then(
@@ -362,7 +475,7 @@ def analyze_tab():
     )
     load_example_btn.click(
         fn=wrapper_load_example,
-        inputs=[transform_args],
+        inputs=[n_fft, hop_length, clip_dc, clip_low_sld, clip_high_sld],
         outputs=[signal_transform],
     ).then(
         fn=show_image,
@@ -379,55 +492,83 @@ def analyze_tab():
         outputs=[extract_out],
     )
 
-    ## Visualization
+    ## Visualization — live re-render from cached state: every view control
+    ## re-runs show_image against the already-computed inference_output, no
+    ## re-inference needed.
+    visualize_rerender_inputs = [
+        view_mode,
+        signal_transform,
+        inference_output,
+        out_1_chk,
+        out_2_chk,
+        vmin_sld,
+        vmax_sld,
+        threshold_sld,
+    ]
     view_mode.change(
         fn=toggle_view_groups,
         inputs=[view_mode],
         outputs=[enhanced_grp, mask_grp],
-    )
-
-    visualize_btn.click(
-        fn=model_infer,
-        inputs=[
-            signal_transform,
-            model,
-        ],
-        outputs=[inference_output],
     ).then(
         fn=show_image,
-        inputs=[
-            view_mode,
-            signal_transform,
-            inference_output,
-            out_1_chk,
-            out_2_chk,
-            vmin_sld,
-            vmax_sld,
-            threshold_sld,
-        ],
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+    out_1_chk.change(
+        fn=show_image,
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+    out_2_chk.change(
+        fn=show_image,
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+    vmin_sld.release(
+        fn=show_image,
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+    vmax_sld.release(
+        fn=show_image,
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+    threshold_sld.release(
+        fn=show_image,
+        inputs=visualize_rerender_inputs,
         outputs=[visualize_out],
     )
 
     ## One-click Analyze: ensure a model is loaded, run inference, visualize
     analyze_btn.click(
         fn=ensure_model,
-        inputs=[model, model_file, signal_transform],
-        outputs=[model],
+        inputs=[model, model_name, model_file, signal_transform],
+        outputs=[model, model_name],
     ).then(
-        fn=model_infer,
+        fn=wrapper_run_inference,
         inputs=[signal_transform, model],
         outputs=[inference_output],
     ).then(
         fn=show_image,
+        inputs=visualize_rerender_inputs,
+        outputs=[visualize_out],
+    )
+
+    ## Export
+    save_export_btn.click(
+        fn=export_analysis,
         inputs=[
-            view_mode,
             signal_transform,
             inference_output,
-            out_1_chk,
-            out_2_chk,
-            vmin_sld,
-            vmax_sld,
+            model_file,
+            n_fft,
+            hop_length,
+            clip_dc,
+            clip_low_sld,
+            clip_high_sld,
             threshold_sld,
+            view_mode,
         ],
-        outputs=[visualize_out],
+        outputs=[export_out],
     )

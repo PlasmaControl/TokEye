@@ -78,7 +78,7 @@ eye = TokEye(log=True)                        # or for every call
 eye = TokEye(
     model="big_tf_unet",   # registry name or path to a local .pt/.pt2
     device="auto",         # "cpu", "cuda", or "auto"
-    n_fft=1024, hop=256,   # STFT settings (1D inputs only)
+    n_fft=1024, hop=128,   # STFT settings (1D inputs only)
     clip_dc=True, clip_low=1.0, clip_high=99.0,
     log=False,             # log1p for linear-scale 2D spectrograms
 )
@@ -108,7 +108,7 @@ Flags:
 | `--model` | `big_tf_unet` | Registry name or path to a `.pt`/`.pt2` checkpoint. |
 | `--output-dir` | `tokeye_output` | Directory for masks and previews. |
 | `--n-fft` | `1024` | STFT window size (1D inputs only). |
-| `--hop` | `256` | STFT hop size (1D inputs only). |
+| `--hop` | `128` | STFT hop size (1D inputs only). |
 | `--keep-dc` | off | Keep the DC bin (dropped by default). |
 | `--clip-low` / `--clip-high` | `1.0` / `99.0` | Percentile clip bounds applied to the spectrogram. |
 | `--log` | off | Apply `log1p` to 2D spectrogram inputs stored in linear scale (1D signals are always log-scaled during the STFT). |
@@ -116,7 +116,7 @@ Flags:
 | `--no-png` | off | Skip preview PNGs; write masks only. |
 | `--device` | `auto` | `cpu`, `cuda`, or `auto`. |
 
-The released model was trained on spectrograms built with hop=128; for closest match to the training configuration use `--hop 128`.
+The defaults (`n_fft=1024`, `hop=128`) match the released model's training configuration. A larger hop (e.g. `--hop 256`) halves the columns for faster, lighter runs at some fidelity cost.
 
 On HPC clusters where compute nodes have no internet access, pre-fetch the weights on the login node, then run the batch job on the compute node:
 

@@ -98,7 +98,7 @@ def convert_audio_to_npy(
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = output_dir / f"audio_converted_{timestamp}.npy"
+        filepath = output_dir / f"audio_converted_{timestamp}_sr{sample_rate}.npy"
 
         np.save(filepath, waveform)
 
@@ -106,11 +106,8 @@ def convert_audio_to_npy(
 **Conversion Successful:**
 - Output file: {filepath}
 - Shape: {waveform.shape}
-- Sample rate: {sample_rate} Hz (saved separately in metadata)
+- Sample rate: {sample_rate} Hz (encoded in the filename, `_sr{sample_rate}`)
 - Normalized: {normalize}
-
-Note: Sample rate information should be stored separately.
-Consider saving as: {filepath.stem}_sr{sample_rate}.npy
 """
 
         gr.Info(f"Converted to {filepath}")
@@ -168,6 +165,26 @@ def process_recorded_audio(
 
     except Exception as e:
         return None, None, f"Error processing recording: {str(e)}"
+
+
+def process_and_preview_recording(
+    audio_data,
+) -> tuple[np.ndarray | None, int | None, str, tuple[int, np.ndarray] | None]:
+    """Process a recording and refresh its playback preview in one step.
+
+    Replaces what used to be two separate ``.click()`` registrations on the
+    same button (``process_recorded_audio`` then a second handler reading
+    the states it had just written) - two listeners bound to one event have
+    no guaranteed ordering, so the playback preview could read stale state
+    from a previous recording. Returning all four outputs from a single
+    handler makes the playback always reflect THIS recording.
+    """
+    waveform, sample_rate, info = process_recorded_audio(audio_data)
+    if waveform is not None and sample_rate is not None:
+        playback = (sample_rate, waveform)
+    else:
+        playback = None
+    return waveform, sample_rate, info, playback
 
 
 # ============================================================================
@@ -237,12 +254,20 @@ def inspect_npy_file(file) -> str:
 # ============================================================================
 
 
-def batch_convert_audio_files(files: list) -> tuple[str, list[str]]:
+def batch_convert_audio_files(
+    files: list, progress=gr.Progress()
+) -> tuple[str, list[str]]:
     """
     Convert multiple audio files to .npy format.
 
     Args:
         files: List of audio files
+        progress: Live progress tracker over ``files``. Must stay a trailing
+            PLAIN (positional-or-keyword) default parameter, not keyword-only
+            - gradio's ``special_args()`` scan stops at the first
+            non-positional parameter, so a ``*, progress=...`` form is
+            invisible to it and the live bar never shows. Must not appear in
+            the event's ``inputs`` list; gradio injects the tracker itself.
 
     Returns:
         (status_text, list_of_output_files)
@@ -266,7 +291,7 @@ def batch_convert_audio_files(files: list) -> tuple[str, list[str]]:
     success_count = 0
     failed_files = []
 
-    for _i, audio_file in enumerate(files):
+    for _i, audio_file in enumerate(progress.tqdm(files, desc="Converting")):
         try:
             # Load audio
             try:
@@ -481,23 +506,19 @@ def utilities_tab():
             outputs=[conversion_status, download_npy_file],
         )
 
-        # Process recording
+        # Process recording and refresh its playback preview in one step
+        # (a single handler avoids the ordering race between two separate
+        # .click() registrations on the same button - see
+        # process_and_preview_recording's docstring).
         process_recording_btn.click(
-            fn=process_recorded_audio,
+            fn=process_and_preview_recording,
             inputs=[audio_recorder],
-            outputs=[recorded_waveform_state, recorded_sr_state, recording_info],
-        )
-
-        # Update playback preview when recording is processed
-        def update_playback(waveform, sample_rate):
-            if waveform is not None and sample_rate is not None:
-                return (sample_rate, waveform)
-            return None
-
-        process_recording_btn.click(
-            fn=update_playback,
-            inputs=[recorded_waveform_state, recorded_sr_state],
-            outputs=[recording_playback],
+            outputs=[
+                recorded_waveform_state,
+                recorded_sr_state,
+                recording_info,
+                recording_playback,
+            ],
         )
 
         # Convert recording to .npy
@@ -521,8 +542,8 @@ def utilities_tab():
         )
 
         # Batch conversion
-        def handle_batch_conversion(files):
-            status, output_files = batch_convert_audio_files(files)
+        def handle_batch_conversion(files, progress=gr.Progress()):
+            status, output_files = batch_convert_audio_files(files, progress=progress)
             if output_files:
                 return status, output_files
             return status, None
