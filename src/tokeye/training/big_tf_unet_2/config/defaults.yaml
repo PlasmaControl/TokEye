@@ -1,20 +1,26 @@
 # Complete defaults for the big_tf_unet_2 single-scale pipeline.
-# A run's run.yaml is MERGED ON TOP of this file (OmegaConf.merge), so run.yaml
-# only ever needs the keys being overridden. Values of "auto" are resolved once
-# per run and recorded (with their resolved values) in resolved_params.yaml.
+# A run folder's run.yml, then the step's own step_N_*.yml, are MERGED ON TOP of
+# this file (OmegaConf.merge), so those files only carry the keys being
+# overridden. Values of "auto" are resolved once per run and recorded (with their
+# resolved values) in resolved_params.yaml.
 
 run:
   nfft: 512
   hop: 128
   allow_custom_scale: false   # true permits (nfft, hop) outside the canonical grid
 
+# A resubmit replaces that step's artifacts (file-granular, fenced to this run's
+# own cache/model roots). Set false — globally here, or per step in a
+# step_N_*.yml — to make a resubmit refuse rather than clobber a long result.
+overwrite: true
+
 modalities:
   ece: { input_key: ece, channels: [8, 12, 16, 20, 24, 28, 32, 36] }
   mhr: { input_key: mhr, channels: [3, 4, 5, 6] }
   bes: { input_key: bes, channels: [26, 28, 30, 32, 34, 36, 38, 40] }
-  # co2 disabled: the preserved co2 top-up data is all-zero for every shot/chord.
-  # Re-enable once co2 is re-fetched with real signal.
-  # co2: { input_key: co2, channels: [0, 1, 2, 3] }
+  # co2's preserved top-up data was all-zero for every shot/chord. step_0 raises
+  # if a modality yields no windows, so a stale fetch fails there, not in step_7.
+  co2: { input_key: co2, channels: [0, 1, 2, 3] }
 
 extraction:
   subseq_len: 66000           # fixed physical window (132 ms @ 500 kHz) at every scale
@@ -100,16 +106,8 @@ paths:
   shots_path: data/autoprocess/settings/shots.txt
   foundation_dir: data/autoprocess/foundation
 
-slurm:
-  account: null
-  cpu_partition: null         # null = scheduler default routing (CPU work, no gres)
-  gpu_partition: gpu
-  cpu_cpus: 42
-  cpu_mem: 43G
-  cpu_time: "05:00:00"
-  gpu_cpus: 16
-  gpu_mem: 48G
-  gpu_time: "05:00:00"
+# No slurm: section — resource requests live in each step's #SBATCH header, where
+# `head -8 step_6_refine.sh` answers "what will this ask for?".
 
 smoke:
   enabled: false

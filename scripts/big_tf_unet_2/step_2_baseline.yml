@@ -1,0 +1,12 @@
+# step_2 — remove the smooth background (baseline) from each spectrogram
+#
+#   sbatch step_2_baseline.sh        then look at step_2_baseline.ipynb
+#
+# Owns the 'baseline:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+baseline:
+  lam: auto        # background stiffness; bigger = smoother background
+  edge_k: 2.0      # edge-bin cut aggressiveness; BIGGER = FEWER bins cut

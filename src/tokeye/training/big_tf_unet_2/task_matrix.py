@@ -1,17 +1,23 @@
-"""Persistent per-run progress tracker with human sign-off and staleness.
+"""Persistent per-run progress tracker with staleness.
 
 JSON-backed (atomic write + flock, safe for concurrent SLURM jobs), one file
 per run at ``<cache_root>/task_matrix.json``. Entries are keyed ``step_N`` for
 combined steps and ``step_N:<modality>`` for per-modality steps.
 
+This is written by the job itself, on the compute node, so progress survives
+losing whatever shell or notebook submitted the work.
+
 Beyond the ablation tracker this adds:
 
 - a status enum (``pending``/``running``/``complete``/``failed``/``stale``),
-- ``accepted`` — the intern's explicit visual sign-off per step,
 - ``params_hash`` — hash of the resolved settings that produced the artifact;
   rerunning a step marks everything downstream ``stale`` so nothing can train
   on outputs that no longer match their inputs,
-- ``job_id`` — the SLURM job that is producing (or produced) the artifact.
+- ``job_id`` — the SLURM job that is producing (or produced) the artifact,
+  taken from ``$SLURM_JOB_ID`` inside the job, and the key to finding its log.
+
+There is no sign-off flag: pacing is the operator's, enforced by submitting one
+step at a time rather than by a gate in code.
 """
 
 from __future__ import annotations
@@ -95,26 +101,36 @@ class RunTaskMatrix:
         entry.update(fields, timestamp=datetime.now().isoformat())
 
     def mark_running(
-        self, step: str, modality: str | None = None, job_id: str | None = None
+        self,
+        step: str,
+        modality: str | None = None,
+        job_id: str | None = None,
+        step_params_hash: str | None = None,
     ) -> None:
+        """Record a step as started.
+
+        The params hash is stored here, not only on completion, so a step that
+        died partway can be compared against the knobs of the next attempt —
+        that comparison is what makes resuming a partial result safe.
+        """
         self.reload()
         entry = self._entry(self.key(step, modality))
         job_id = job_id or entry.get("job_id")
         self._set(
-            self.key(step, modality), status="running", job_id=job_id, accepted=False
+            self.key(step, modality),
+            status="running",
+            job_id=job_id,
+            params_hash=step_params_hash or entry.get("params_hash"),
         )
         self._save()
 
-    def record_job(
-        self, step: str, modality: str | None, job_id: str
-    ) -> None:
-        """Mark a step as submitted to SLURM (queued, not yet running)."""
-        self.reload()
-        self._set(
-            self.key(step, modality), status="submitted", job_id=job_id,
-            accepted=False,
-        )
-        self._save()
+    def params_match(
+        self, step: str, modality: str | None, step_params_hash: str
+    ) -> bool:
+        """True if the last attempt at this step ran with these same knobs."""
+        return self._entry(self.key(step, modality)).get(
+            "params_hash"
+        ) == step_params_hash
 
     def mark_complete(
         self,
@@ -129,14 +145,13 @@ class RunTaskMatrix:
             self.key(step, modality),
             status="complete",
             params_hash=step_params_hash,
-            accepted=False,
         )
         self._invalidate_downstream(step, modality, modalities)
         self._save()
 
     def mark_failed(self, step: str, modality: str | None = None) -> None:
         self.reload()
-        self._set(self.key(step, modality), status="failed", accepted=False)
+        self._set(self.key(step, modality), status="failed")
         self._save()
 
     def mark_pending(self, step: str, modalities: list[str]) -> None:
@@ -163,29 +178,7 @@ class RunTaskMatrix:
                 keys = [spec.name]
             for key in keys:
                 if self._entry(key).get("status") == "complete":
-                    self._set(key, status="stale", accepted=False)
-
-    # ------------------------------------------------------------------
-    # Acceptance (human sign-off)
-    # ------------------------------------------------------------------
-
-    def accept(self, step: str, modalities: list[str]) -> None:
-        self.reload()
-        keys = self.keys_for(step, modalities)
-        not_done = [k for k in keys if self._entry(k).get("status") != "complete"]
-        if not_done:
-            raise ValueError(
-                f"Cannot accept {step}: not complete for {', '.join(not_done)}"
-            )
-        for key in keys:
-            self._set(key, accepted=True)
-        self._save()
-
-    def is_accepted(self, step: str, modalities: list[str]) -> bool:
-        return all(
-            self._entry(k).get("accepted", False)
-            for k in self.keys_for(step, modalities)
-        )
+                    self._set(key, status="stale")
 
     # ------------------------------------------------------------------
     # Queries
@@ -221,7 +214,6 @@ class RunTaskMatrix:
                         "title": spec.title,
                         "modality": mod or "-",
                         "status": entry.get("status", "pending"),
-                        "accepted": entry.get("accepted", False),
                         "job_id": entry.get("job_id"),
                         "updated": entry.get("timestamp"),
                     }

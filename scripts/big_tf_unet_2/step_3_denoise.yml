@@ -1,0 +1,12 @@
+# step_3 — self-supervised cross-channel denoiser, one model per modality
+#
+#   sbatch step_3_denoise.sh        then look at step_3_denoise.ipynb
+#
+# Owns the 'denoise:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+denoise:
+  max_epochs: 30
+  batch_size: auto   # auto scales with the spectrogram size

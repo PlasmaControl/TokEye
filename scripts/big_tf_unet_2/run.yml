@@ -1,0 +1,33 @@
+# Shared configuration for this run — everything that is not per-step.
+#
+# The folder name is the run id: artifacts land in
+# data/cache/big_tf_unet_2/<folder name>/ and model/big_tf_unet_2/<folder name>/.
+#
+# Merge order, lowest precedence first:
+#   src/tokeye/training/big_tf_unet_2/config/defaults.yaml
+#   run.yml            (this file)
+#   step_N_*.yml       (the step being run)
+
+run:
+  nfft: 512     # STFT window size — LOCKED once the first step has run
+  hop: 128      # STFT hop length  — LOCKED once the first step has run
+
+# A resubmit replaces that step's artifacts. Set false (here, or in one step's
+# own .yml) to make a resubmit refuse instead of clobbering a long result.
+overwrite: true
+
+# Diagnostics to train on. Removing one here means narrowing --array in the
+# step_0..step_4 .sh files to match.
+modalities:
+  ece: { input_key: ece, channels: [8, 12, 16, 20, 24, 28, 32, 36] }
+  mhr: { input_key: mhr, channels: [3, 4, 5, 6] }
+  bes: { input_key: bes, channels: [26, 28, 30, 32, 34, 36, 38, 40] }
+  co2: { input_key: co2, channels: [0, 1, 2, 3] }
+
+paths:
+  shots_path: data/autoprocess/settings/shots.txt
+  foundation_dir: data/autoprocess/foundation
+
+# Tiny 2-shot run to check the whole pipeline end to end before a real one.
+smoke:
+  enabled: false

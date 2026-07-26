@@ -1,0 +1,12 @@
+# step_5 — pack every modality into one training set
+#
+#   sbatch step_5_dataset.sh        then look at step_5_dataset.ipynb
+#
+# Owns the 'dataset:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+dataset:
+  a: 3.0             # compression scale at the segmenter input
+  stats_windows: 100 # windows sampled for the per-modality robust stats

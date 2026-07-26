@@ -13,7 +13,20 @@ Outputs (``step_6.h5``):
 - ``disagreement``   (N, 2, F, T) float32 — |p_oof - y0|, the intern's visual
   QC map (replaces the deleted manual mask editor)
 - ``fold``           (N,) int8 — which fold held each sample out
-- attrs: per-fold validation dice/iou
+- attrs: ``n_folds``, ``folds_done``, per-fold validation dice/iou
+
+**Fold-level resume.** This is the longest step in the pipeline — K folds trained
+in sequence — so it is the one step the runner does not clear before rerunning
+(``StepSpec.resumable``). Each fold's slice of the output is complete and
+independently valid the moment it is written, and ``folds_done`` records which
+ones exist, so a job killed by the wall clock resumes at the fold it died on
+rather than repeating the ones it finished. The fold split is seeded
+(``random_state=42``), which is what makes that safe: fold *k* covers the same
+held-out samples in every attempt. A fold interrupted mid-training restarts from
+scratch; only whole folds are checkpointed here.
+
+Any knob change invalidates the partial — the runner compares the params hash of
+this attempt against the previous one and clears when they differ.
 
 The soft target q = (1 - model_trust)*y0 + model_trust*p_oof is deliberately
 NOT stored here: model_trust is an intern knob, and applying it downstream
@@ -182,37 +195,83 @@ def _loader(dataset, settings: dict, shuffle: bool) -> DataLoader:
     )
 
 
+def _open_output(
+    out_h5: Path, n: int, sample_shape: tuple[int, ...], n_folds: int
+) -> tuple[h5py.File, list[int], list[dict]]:
+    """Open the OOF file for writing, reusing a compatible partial result.
+
+    Returns the open file plus the folds already written and their metrics. A
+    partial is only reused when its shape and fold count match this run; anything
+    else (including an unreadable file from a job killed mid-write) starts over.
+    The runner has already decided that reuse is *allowed* — this only decides
+    whether the file on disk is actually usable.
+    """
+    if out_h5.exists():
+        try:
+            out = h5py.File(out_h5, "a")
+        except OSError:
+            logger.warning(f"{out_h5.name} is unreadable; starting from fold 0")
+        else:
+            compatible = (
+                int(out.attrs.get("n_folds", -1)) == n_folds
+                and "p_oof" in out
+                and out["p_oof"].shape == (n, *sample_shape)
+            )
+            if compatible:
+                done = sorted(json.loads(out.attrs.get("folds_done", "[]")))
+                metrics = json.loads(out.attrs.get("fold_metrics", "[]"))
+                if done:
+                    logger.info(f"resuming: folds {done} already written")
+                return out, done, metrics
+            logger.warning(
+                f"{out_h5.name} does not match this run "
+                f"(n={n}, n_folds={n_folds}); starting from fold 0"
+            )
+            out.close()
+
+    out = h5py.File(out_h5, "w")
+    for name in ("p_oof", "disagreement"):
+        out.create_dataset(
+            name,
+            shape=(n, *sample_shape),
+            dtype=np.float32,
+            chunks=(1, *sample_shape),
+            compression="lzf",
+        )
+    out.create_dataset("fold", shape=(n,), dtype=np.int8)
+    out.attrs["n_folds"] = n_folds
+    out.attrs["folds_done"] = "[]"
+    out.attrs["fold_metrics"] = "[]"
+    return out, [], []
+
+
 def main(settings: dict) -> None:
     L.seed_everything(42)
     in_h5 = settings["in_h5"]
     ckpt_dir = settings["ckpt_dir"]
     ckpt_dir.mkdir(parents=True, exist_ok=True)
+    n_folds = settings["n_folds"]
 
     train_full = DatasetH5(in_h5, transform=get_augmentation(_TRAIN_DEFAULTS))
     eval_full = DatasetH5(in_h5, transform=None)
     n = len(eval_full)
     sample_shape = eval_full[0][1].shape  # (2, F, T)
 
-    with h5py.File(settings["out_h5"], "w") as out:
-        p_oof = out.create_dataset(
-            "p_oof",
-            shape=(n, *sample_shape),
-            dtype=np.float32,
-            chunks=(1, *sample_shape),
-            compression="lzf",
-        )
-        disagreement = out.create_dataset(
-            "disagreement",
-            shape=(n, *sample_shape),
-            dtype=np.float32,
-            chunks=(1, *sample_shape),
-            compression="lzf",
-        )
-        fold_of = out.create_dataset("fold", shape=(n,), dtype=np.int8)
+    out, folds_done, fold_metrics = _open_output(
+        settings["out_h5"], n, tuple(sample_shape), n_folds
+    )
+    try:
+        p_oof = out["p_oof"]
+        disagreement = out["disagreement"]
+        fold_of = out["fold"]
 
-        kfold = KFold(n_splits=settings["n_folds"], shuffle=True, random_state=42)
-        fold_metrics = []
+        # Seeded split: fold k holds out the same samples on every attempt, which
+        # is what makes skipping an already-written fold correct.
+        kfold = KFold(n_splits=n_folds, shuffle=True, random_state=42)
         for fold, (train_idx, val_idx) in enumerate(kfold.split(np.arange(n))):
+            if fold in folds_done:
+                logger.info(f"fold {fold}: already written, skipping")
+                continue
             logger.info(
                 f"fold {fold}: train={len(train_idx)}, held-out={len(val_idx)}"
             )
@@ -267,16 +326,29 @@ def main(settings: dict) -> None:
                 p_oof[global_idx] = probs[j]
                 disagreement[global_idx] = np.abs(probs[j] - y0)
                 fold_of[global_idx] = fold
-            logger.info(f"fold {fold} OOF written ({len(val_idx)} samples)")
 
-        out.attrs["n_folds"] = settings["n_folds"]
-        out.attrs["fold_metrics"] = json.dumps(fold_metrics)
+            # Commit the fold before starting the next one: this flush is what a
+            # resumed run reads back, so it must land before anything can kill us.
+            folds_done.append(fold)
+            out.attrs["folds_done"] = json.dumps(sorted(folds_done))
+            out.attrs["fold_metrics"] = json.dumps(fold_metrics)
+            out.flush()
+            logger.info(
+                f"fold {fold} OOF written ({len(val_idx)} samples); "
+                f"{len(folds_done)}/{n_folds} folds done"
+            )
+    finally:
+        out.close()
+
+    if sorted(folds_done) != list(range(n_folds)):
+        missing = [f for f in range(n_folds) if f not in folds_done]
+        raise RuntimeError(f"step_6 incomplete: folds {missing} never finished")
 
     # Every sample must have been predicted by exactly one fold.
     counts = np.zeros(n, dtype=int)
-    for _, val_idx in KFold(
-        n_splits=settings["n_folds"], shuffle=True, random_state=42
-    ).split(np.arange(n)):
+    for _, val_idx in KFold(n_splits=n_folds, shuffle=True, random_state=42).split(
+        np.arange(n)
+    ):
         counts[val_idx] += 1
     if not np.all(counts == 1):
         raise RuntimeError("OOF coverage broken: some samples not predicted once")

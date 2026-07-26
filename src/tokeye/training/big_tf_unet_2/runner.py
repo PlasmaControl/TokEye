@@ -1,13 +1,18 @@
 """Step orchestration: settings builders, gating, and the CLI entry point.
 
-The same entry point serves notebook inline cells and sbatch payloads:
+The single entry point, and the payload of every step's ``.sh``:
 
     python -m tokeye.training.big_tf_unet_2.runner \
-        --run-config dev/training/nfft512_hop128/run.yaml --steps step_0,step_1
+        --config dev/training/nfft512_hop128/step_3_denoise.yml \
+        --modalities ece
+
+The step is inferred from the config file's stem, so a ``.sh`` names exactly one
+``.yml`` and cannot drift from it. ``--steps`` overrides that inference for the
+rare case of running several steps in one job.
 
 Contract with step modules: each ``step_N_*.py`` exposes
 ``main(settings: dict) -> dict | None``. The runner builds the settings dict
-(config values + resolved autos + artifact paths), clears the step's previous
+(config values + resolved autos + artifact paths), replaces the step's previous
 artifacts, tracks status in the task matrix, and records any in-step resolved
 values the step returns (e.g. per-modality stats) into the ledger.
 """
@@ -16,14 +21,17 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import json
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from . import auto_resolve
 from .clearing import clear_step
-from .paths import STEP_ORDER, RunPaths, get_step
-from .run_config import RunConfig, check_scale_lock, load_run_config
+from .paths import STEP_ORDER, RunPaths, get_step, step_for_config
+from .run_config import ConfigError, RunConfig, check_scale_lock, load_run_config
 from .task_matrix import RunTaskMatrix, params_hash
 
 logger = logging.getLogger(__name__)
@@ -243,23 +251,105 @@ def _check_upstream(
             )
 
 
+def _lock_scale(paths: RunPaths, cfg: RunConfig) -> None:
+    """Write the scale lock on first use of a run folder.
+
+    Copying the template is all it takes to create a run, so there is no
+    scaffold to record ``(nfft, hop)`` up front. The first step to run does it,
+    and ``check_scale_lock`` refuses any later disagreement.
+    """
+    if paths.run_meta.exists():
+        return
+    paths.cache_root.mkdir(parents=True, exist_ok=True)
+    paths.run_meta.write_text(
+        json.dumps(
+            {
+                "run_id": paths.run_id,
+                "nfft": cfg.run.nfft,
+                "hop": cfg.run.hop,
+                "created": datetime.now().isoformat(),
+            },
+            indent=2,
+        )
+    )
+
+
+def _replace_artifacts(
+    paths: RunPaths,
+    cfg: RunConfig,
+    step: str,
+    modality: str | None,
+    matrix: RunTaskMatrix,
+    step_params_hash: str,
+) -> None:
+    """Clear the step's own artifacts, honouring ``overwrite`` and resumability.
+
+    Clearing is file-granular and fenced to this run's cache/model roots (see
+    ``clearing.py``), so rerunning one modality never touches its siblings.
+
+    A ``resumable`` step keeps its partial output when the previous attempt ran
+    with the same knobs — that is how step_6 continues from the folds it already
+    finished instead of repeating them. Any knob change invalidates the partial
+    and it is cleared, because half a result computed under different settings is
+    not a result.
+    """
+    mods = [modality] if modality else cfg.modality_names
+    targets = paths.artifacts(step, mods)
+    existing = [t for t in targets if t.exists()]
+    label = f"{step}" + (f":{modality}" if modality else "")
+    if not existing:
+        for target in targets:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        return
+
+    if get_step(step).resumable and matrix.params_match(
+        step, modality, step_params_hash
+    ):
+        logger.info(
+            f"[{paths.run_id}] {label}: knobs unchanged — continuing from the "
+            f"existing partial result instead of restarting"
+        )
+        return
+
+    if not cfg.overwrite:
+        listed = "\n  ".join(str(t) for t in existing)
+        raise ConfigError(
+            f"{label} already has artifacts and overwrite is false:\n  {listed}\n"
+            f"Set overwrite: true (in run.yml, or just this step's .yml) to "
+            f"replace them."
+        )
+    for target in existing:
+        logger.info(f"[{paths.run_id}] {label}: replacing {target}")
+    clear_step(paths, cfg, step, modality)
+    for target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+
 def run_step(
-    run_yaml: str | Path,
+    config_path: str | Path,
     step: str,
     modality: str | None = None,
     force: bool = False,
 ) -> None:
     """Run one step (one modality for per-modality steps) end to end."""
-    run_yaml = Path(run_yaml).resolve()
-    cfg = load_run_config(run_yaml)
-    paths = RunPaths(run_yaml.parent.name)
+    config_path = Path(config_path).resolve()
+    cfg = load_run_config(config_path)
+    paths = RunPaths(config_path.parent.name)
     check_scale_lock(cfg, paths.run_meta)
+    _lock_scale(paths, cfg)
 
     spec = get_step(step)
     if spec.per_modality and modality is None:
         for mod in cfg.modality_names:
-            run_step(run_yaml, step, mod, force)
+            run_step(config_path, step, mod, force)
         return
+    if modality is not None and modality not in cfg.modalities:
+        known = ", ".join(cfg.modality_names)
+        raise ConfigError(
+            f"unknown modality {modality!r} — run.yml defines: {known}. "
+            f"(If a step's .sh has an --array range wider than that list, the "
+            f"extra tasks land here.)"
+        )
 
     matrix = RunTaskMatrix(paths.task_matrix_path)
     if not force:
@@ -269,14 +359,22 @@ def run_step(
     pre_resolved = auto_resolve.resolve_step_autos(cfg, step, modality, paths)
     auto_resolve.record(paths, step, modality, pre_resolved, source="auto")
 
-    # Idempotent rerun: previous artifacts go away before the step starts, and
-    # the matrix (not file existence) is the source of truth for completion.
-    clear_step(paths, cfg, step, modality)
-    for target in paths.artifacts(step, [modality] if modality else cfg.modality_names):
-        target.parent.mkdir(parents=True, exist_ok=True)
-
+    # Hash the knobs BEFORE touching artifacts: a resumable step's partial output
+    # is only reusable if this hash matches what the previous attempt ran with.
     hashable = {k: v for k, v in settings.items() if k not in _VOLATILE_KEYS}
-    matrix.mark_running(step, modality)
+    step_hash = params_hash(hashable)
+
+    # The matrix (not file existence) is the source of truth for completion, so
+    # a rerun starts from a clean slate for this step alone — unless the step is
+    # resumable and its knobs are unchanged.
+    _replace_artifacts(paths, cfg, step, modality, matrix, step_hash)
+
+    matrix.mark_running(
+        step,
+        modality,
+        job_id=os.environ.get("SLURM_JOB_ID"),
+        step_params_hash=step_hash,
+    )
     label = f"{step}" + (f":{modality}" if modality else "")
     logger.info(f"[{paths.run_id}] running {label}")
     try:
@@ -287,33 +385,56 @@ def run_step(
         raise
     if in_step:
         auto_resolve.record(paths, step, modality, in_step, source="in-step")
-    matrix.mark_complete(step, modality, params_hash(hashable), cfg.modality_names)
+    matrix.mark_complete(step, modality, step_hash, cfg.modality_names)
     logger.info(f"[{paths.run_id}] {label} complete")
 
 
-def main() -> None:
+def _configure_logging() -> None:
+    """Log to stdout only — SLURM captures it into ``logs/<jobid>_<name>.out``.
+
+    No file handler: ``logs/`` is flat and shared, so one append-mode file would
+    interleave the concurrent tasks of a per-modality job array.
+    """
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(name)s %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(message)s",
+        handlers=[logging.StreamHandler()],
     )
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-config", required=True)
     parser.add_argument(
-        "--steps", required=True, help="comma-separated, e.g. step_0,step_1"
+        "--config", required=True, help="path to a run folder's step_N_*.yml"
+    )
+    parser.add_argument(
+        "--steps",
+        default=None,
+        help="override the step inferred from --config (comma-separated)",
     )
     parser.add_argument(
         "--modalities", default=None, help="comma-separated subset (default: all)"
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
+    _configure_logging()
+
+    config = Path(args.config).resolve()
+    steps = (
+        [s.strip() for s in args.steps.split(",")]
+        if args.steps
+        else [step_for_config(config).name]
+    )
+    # The log filename carries the job id, not the run — so name the run here.
+    logger.info(f"[{config.parent.name}] {', '.join(steps)} from {config.name}")
 
     mods = args.modalities.split(",") if args.modalities else [None]
-    for step in args.steps.split(","):
-        step = step.strip()
+    for step in steps:
         if get_step(step).per_modality and args.modalities:
             for mod in mods:
-                run_step(args.run_config, step, mod, args.force)
+                run_step(config, step, mod, args.force)
         else:
-            run_step(args.run_config, step, None, args.force)
+            run_step(config, step, None, args.force)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,13 @@
 
 One pipeline run = one (nfft, hop) scale. Every artifact of a run lives under
 ``data/cache/big_tf_unet_2/<run_id>/`` (pipeline caches) and
-``model/big_tf_unet_2/<run_id>/`` (trained weights). The intern workspace
-(run.yaml + notebooks) lives in ``dev/training/<run_id>/`` (gitignored).
+``model/big_tf_unet_2/<run_id>/`` (trained weights). SLURM job output goes to
+the repo's flat ``logs/``, named job-id-first.
+
+A run's workspace is ``dev/training/<run_id>/`` (gitignored), created by copying
+the ``scripts/big_tf_unet_2/`` template — so **the directory name IS the run
+id**. It holds ``run.yml`` plus a flat ``step_N_*.{yml,sh,ipynb}`` triplet per
+step; there is no scaffold step and nothing is generated.
 
 All paths are repo-root relative — run every entry point from the repo root,
 matching the convention of the other training pipelines.
@@ -54,28 +59,41 @@ class StepSpec:
 
     name: str  # e.g. "step_2"
     title: str  # short human label for status tables / notebooks
-    module: str  # module basename inside this package
+    module: str  # module basename inside this package AND the workspace file stem
     per_modality: bool  # True: runs once per modality, artifacts under <mod>/
-    exec_mode: str  # "inline" | "sbatch_cpu" | "sbatch_gpu"
-    knob_section: str  # run.yaml section holding this step's knobs
+    exec_mode: str  # "sbatch_cpu" | "sbatch_gpu" (every step is a batch job)
+    knob_section: str  # the config section this step's own step_N_*.yml owns
+    # True: the step can continue from its own partial output, so a resubmit
+    # with unchanged knobs must NOT clear it first (see runner._replace_artifacts).
+    resumable: bool = False
 
 
 STEPS: list[StepSpec] = [
-    StepSpec("step_0", "intake", "step_0_intake", True, "inline", "extraction"),
+    StepSpec("step_0", "intake", "step_0_intake", True, "sbatch_cpu", "extraction"),
     StepSpec(
-        "step_1", "spectrogram", "step_1_spectrogram", True, "inline", "window_filter"
+        "step_1",
+        "spectrogram",
+        "step_1_spectrogram",
+        True,
+        "sbatch_cpu",
+        "window_filter",
     ),
     StepSpec("step_2", "baseline", "step_2_baseline", True, "sbatch_cpu", "baseline"),
     StepSpec("step_3", "denoise", "step_3_denoise", True, "sbatch_gpu", "denoise"),
-    StepSpec("step_4", "labels", "step_4_labels", True, "inline", "labels"),
-    StepSpec("step_5", "dataset", "step_5_dataset", False, "inline", "dataset"),
-    StepSpec("step_6", "refine", "step_6_refine", False, "sbatch_gpu", "refine"),
+    StepSpec("step_4", "labels", "step_4_labels", True, "sbatch_cpu", "labels"),
+    StepSpec("step_5", "dataset", "step_5_dataset", False, "sbatch_cpu", "dataset"),
+    # step_6 is the only resumable step: five sequential folds, each worth hours,
+    # and each one's output is independently valid once written.
+    StepSpec(
+        "step_6", "refine", "step_6_refine", False, "sbatch_gpu", "refine", True
+    ),
     StepSpec("step_7", "final", "step_7_final", False, "sbatch_gpu", "final"),
-    StepSpec("step_8", "eval", "step_8_eval", False, "inline", "eval"),
+    StepSpec("step_8", "eval", "step_8_eval", False, "sbatch_cpu", "eval"),
 ]
 
 STEP_ORDER: list[str] = [s.name for s in STEPS]
 _STEP_BY_NAME: dict[str, StepSpec] = {s.name: s for s in STEPS}
+_STEP_BY_MODULE: dict[str, StepSpec] = {s.module: s for s in STEPS}
 
 
 def get_step(name: str) -> StepSpec:
@@ -84,6 +102,24 @@ def get_step(name: str) -> StepSpec:
     except KeyError:
         raise KeyError(
             f"Unknown step {name!r}. Valid steps: {', '.join(STEP_ORDER)}"
+        ) from None
+
+
+def step_for_config(config_path: str | Path) -> StepSpec:
+    """The step a workspace config file configures, from its stem.
+
+    ``step_3_denoise.yml`` -> the step_3 spec. This is what keeps a triplet
+    honest: a ``.sh`` names exactly one ``.yml``, and the step name is read out
+    of that name rather than restated, so the two cannot drift apart.
+    """
+    stem = Path(config_path).stem
+    try:
+        return _STEP_BY_MODULE[stem]
+    except KeyError:
+        known = ", ".join(f"{s.module}.yml" for s in STEPS)
+        raise KeyError(
+            f"{Path(config_path).name!r} is not a step config. Expected one of: "
+            f"{known}"
         ) from None
 
 
@@ -116,13 +152,35 @@ class RunPaths:
     def workspace(self) -> Path:
         return self.root / "dev" / "training" / self.run_id
 
+    @property
+    def log_dir(self) -> Path:
+        """SLURM job output — the repo's flat, gitignored ``logs/``.
+
+        Flat and shared across runs: the ``#SBATCH --output`` in each step's
+        ``.sh`` is ``logs/%j_%x.out``, resolved relative to ``--chdir`` (the repo
+        root). Job id leads the filename, so the identity is the job, not the
+        run — which is why the runner logs the run id as its first line.
+        """
+        return self.root / "logs"
+
     # ------------------------------------------------------------------
     # Run-level files
     # ------------------------------------------------------------------
 
     @property
-    def run_yaml(self) -> Path:
-        return self.workspace / "run.yaml"
+    def run_yml(self) -> Path:
+        """Shared config: run, modalities, paths, smoke, overwrite."""
+        return self.workspace / "run.yml"
+
+    def step_yml(self, step: str) -> Path:
+        """One step's own config file, owning only its ``knob_section``."""
+        return self.workspace / f"{get_step(step).module}.yml"
+
+    def step_sh(self, step: str) -> Path:
+        return self.workspace / f"{get_step(step).module}.sh"
+
+    def step_ipynb(self, step: str) -> Path:
+        return self.workspace / f"{get_step(step).module}.ipynb"
 
     @property
     def run_meta(self) -> Path:
@@ -135,10 +193,6 @@ class RunPaths:
     @property
     def resolved_params_path(self) -> Path:
         return self.cache_root / "resolved_params.yaml"
-
-    @property
-    def slurm_dir(self) -> Path:
-        return self.cache_root / "slurm"
 
     # ------------------------------------------------------------------
     # Step artifacts
@@ -197,7 +251,15 @@ class RunPaths:
         return out
 
 
-NOTEBOOK_TEMPLATE_DIR = Path(__file__).parent / "notebooks"
 CONFIG_DIR = Path(__file__).parent / "config"
 DEFAULTS_YAML = CONFIG_DIR / "defaults.yaml"
-RUN_TEMPLATE_YAML = CONFIG_DIR / "run_template.yaml"
+
+
+def template_dir(root: Path | None = None) -> Path:
+    """The run-folder template that gets ``cp -r``'d into ``dev/training/``.
+
+    Lives in ``scripts/`` rather than the package: it is site-specific (the
+    ``#SBATCH --chdir`` is an absolute cluster path) and belongs next to
+    ``scripts/commands/``, not in the installed wheel.
+    """
+    return (root or repo_root()) / "scripts" / "big_tf_unet_2"

@@ -1,0 +1,11 @@
+# step_0 — load raw shot data, resample, pre-emphasize, cut into windows
+#
+#   sbatch step_0_intake.sh        then look at step_0_intake.ipynb
+#
+# Owns the 'extraction:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+extraction:
+  max_windows_per_shot_precap: 60   # hard cap before step_1 filters further
