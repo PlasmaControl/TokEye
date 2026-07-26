@@ -40,7 +40,6 @@ Heavy dependencies are split into extras so you download only what you use:
 | `pip install tokeye` | Python API + CLI (`tokeye run`, mode-analysis suite). Smallest core install. |
 | `pip install 'tokeye[app]'` | + the Gradio web app (`tokeye app`). |
 | `pip install 'tokeye[train]'` | + the training/ablation pipeline. |
-| `pip install 'tokeye[eigspec]'` | + `tokeye eigspec` clustering. |
 
 **GPU vs CPU PyTorch.** A plain install pulls the default PyTorch wheel — the **CUDA (GPU) build (~2.5 GB)** on Linux. On a machine without a GPU, install the CPU wheel (~200 MB) instead:
 
@@ -131,13 +130,11 @@ Beyond segmentation, `tokeye` bundles the analyses DIII-D researchers usually re
 
 | Command | What it does |
 | --- | --- |
-| `tokeye modespec <config.yaml>` | Classic Mirnov mode analysis (vendored [pymodespec](src/tokeye/modespec/classic/PROVENANCE.md), the Python port of the IDL `modespec` tool): power spectrograms, matched-filter toroidal mode-number fits, per-shot mode CSVs. Data fetch needs MDSplus (GA cluster / conda-forge) or a local cache; an example config ships at `src/tokeye/modespec/classic/modes.yaml`. |
 | `tokeye elmspec INPUTS...` | ELM detection from the segmentation model's transient channel: per-event time intervals plus per-shot count, ELM frequency (with `--fs`), and duty cycle, written to `elm_events.csv` / `elm_summary.csv`. |
 | `tokeye alfvenspec INPUTS...` | Alfvén-eigenmode detection with the `ae_tf_maskrcnn` instance model: per-detection boxes/scores (`ae_detections.csv`) and instance masks. Wide spectrograms are processed in training-width windows automatically. |
-| `tokeye eigspec [SCRIPT]` | Interactive modal identification and spectral analysis (vendored [eigspec](src/tokeye/eigspec/PROVENANCE.md), the Python port of the MATLAB toolbox): stochastic subspace ID, AR/PCA, random-projection spectral analysis, clustering (clustering needs `pip install tokeye[eigspec]`). |
 | `tokeye modesearch` | Design stage — prints the plan for a searchable database of detected modes. |
 
-The suite roadmap (including the next-generation `modespec --engine deep`) lives in [docs/ROADMAP.md](docs/ROADMAP.md).
+The suite roadmap lives in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Web app guide
 

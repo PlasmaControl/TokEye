@@ -8,8 +8,8 @@ toward it.
 
 1. **Offline crawler / cataloguer.** A batch job walks shot archives (local
    HDF5 stores, MDSplus when reachable) and runs the TokEye suite on each
-   shot: `big_tf_unet` masks, `modespec` toroidal mode-number fits, `elmspec`
-   ELM events, `alfvenspec` AE detections. Every detection becomes a mode
+   shot: `big_tf_unet` masks, `elmspec` ELM events, `alfvenspec` AE
+   detections. Every detection becomes a mode
    record in the database.
 2. **Mode record.** One row per mode event — the working sketch:
    shot, machine, diagnostic, time interval, frequency band, mode numbers

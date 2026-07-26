@@ -18,11 +18,9 @@ from tokeye.cli import (
     alfvenspec,
     app,
     download,
-    eigspec,
     elmspec,
     example,
     modesearch,
-    modespec,
     run,
 )
 
@@ -46,10 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_subcommand(subparsers)
     download.add_subcommand(subparsers)
     example.add_subcommand(subparsers)
-    modespec.add_subcommand(subparsers)
     elmspec.add_subcommand(subparsers)
     alfvenspec.add_subcommand(subparsers)
-    eigspec.add_subcommand(subparsers)
     modesearch.add_subcommand(subparsers)
     return parser
 
