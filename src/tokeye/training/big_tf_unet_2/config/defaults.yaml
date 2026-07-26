@@ -106,10 +106,10 @@ slurm:
   gpu_partition: gpu
   cpu_cpus: 42
   cpu_mem: 43G
-  cpu_time: "08:00:00"
+  cpu_time: "05:00:00"
   gpu_cpus: 16
   gpu_mem: 48G
-  gpu_time: "18:00:00"
+  gpu_time: "05:00:00"
 
 smoke:
   enabled: false
