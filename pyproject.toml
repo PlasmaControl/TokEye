@@ -13,10 +13,11 @@ dependencies = [
     "scipy",
     "matplotlib",
     # PyTorch 2.11 dropped Volta/V100 (sm_70) from its CUDA wheels; DIII-D's
-    # omega GPU partition is V100 (gres=gpu:v100). 2.10 is the last release
-    # that runs there on GPU. Lift when the deploy targets newer hardware.
-    "torch<2.11",
-    "torchvision",  # follows torch via torchvision's own exact torch pin
+    # omega GPU partition is V100 (gres=gpu:v100), so we stay below it. Pinned
+    # exactly rather than capped: uv.lock is untracked, so a range would let the
+    # torch family drift apart between machines.
+    "torch==2.9.1",
+    "torchvision==0.24.1",  # the torchvision built against torch 2.9.1
     "torchinfo",
     "omegaconf",
     "pydantic",
@@ -31,9 +32,6 @@ app = [
     # and moves theme=/css= from Blocks() to launch() — the app is 5.x-only.
     "gradio>=5.49,<6",
 ]
-eigspec = [
-    "scikit-learn",
-]
 train = [
     "ipykernel",
     "ipywidgets",
@@ -41,7 +39,7 @@ train = [
     "wavio",
     "joblib",
     "lightning",
-    "torchaudio<2.11",  # match torch<2.11 (2.11 dropped its torch-version metadata)
+    "torchaudio==2.9.1",  # must match torch exactly, or libtorchaudio.so won't load
     "torchmetrics",
     "scikit-learn",
     "scikit-image",
@@ -65,6 +63,11 @@ testpaths = [
 
 [tool.uv]
 package = true
+# Keep torch/torchvision/torchaudio on ONE index. Mixing a +cuXXX torch with a
+# plain-PyPI torchaudio gives an import-time ABI error
+# (libtorchaudio.so: undefined symbol ...c10_cuda_check_implementation...).
+# "auto" detects the local driver, so CPU boxes and CI resolve correctly too.
+torch-backend = "auto"
 
 [tool.uv.build-backend]
 module-name = "tokeye"
@@ -76,7 +79,10 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-xdist",
-    "ruff",
+    # Pinned: ruff IS the CI gate, so its version has to be reproducible now
+    # that uv.lock is untracked. 0.16 flags ~219 pre-existing issues in the
+    # legacy training/eval code; upgrading is its own piece of work.
+    "ruff>=0.14.5,<0.15",
     "pre-commit",
 ]
 train = [
@@ -88,7 +94,7 @@ train = [
     "joblib",
 
     "lightning",
-    "torchaudio<2.11",  # match torch<2.11 (2.11 dropped its torch-version metadata)
+    "torchaudio==2.9.1",  # must match torch exactly, or libtorchaudio.so won't load
     "torchmetrics",
 
     "scikit-learn",
