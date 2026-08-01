@@ -1,0 +1,26 @@
+run_id: nfft512_hop128
+nfft: 512
+hop: 128
+normalization:
+  form: a*asinh((log1p|Z| - median)/(a*scale))
+  a: 3.0
+modality_stats:
+  bes_median: 0.21676486730575562
+  bes_scale: 0.18969349563121796
+  ece_median: 0.16003234684467316
+  ece_scale: 0.14049707353115082
+  mhr_median: 1.2692314386367798
+  mhr_scale: 0.6917355060577393
+edge_bins:
+  ece:
+    edge_bins_lower: 17
+    edge_bins_upper: 1
+  mhr:
+    edge_bins_lower: 1
+    edge_bins_upper: 19
+  bes:
+    edge_bins_lower: 1
+    edge_bins_upper: 1
+model_trust: 0.5
+checkpoint: /scratch/gpfs/ck0997/tokeye/model/big_tf_unet_2/nfft512_hop128/epoch=97-step=5390.ckpt
+torchscript: /scratch/gpfs/ck0997/tokeye/model/big_tf_unet_2/nfft512_hop128/final.torchscript.pt
