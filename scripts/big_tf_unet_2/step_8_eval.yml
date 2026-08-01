@@ -1,0 +1,11 @@
+# step_8 — score the exported model on the TJ-II benchmark
+#
+#   sbatch step_8_eval.sh        then look at step_8_eval.ipynb
+#
+# Owns the 'eval:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+eval:
+  n_thresholds: 50   # resolution of the threshold sweep

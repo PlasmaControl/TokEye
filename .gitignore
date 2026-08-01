@@ -95,10 +95,10 @@ ipython_config.py
 #Pipfile.lock
 
 # UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#uv.lock
+#   Untracked deliberately. TokEye is a library, not a pinned application, so CI
+#   resolving fresh is the behavior we want. Tracking it also made every branch
+#   touching dependencies conflict on a 5000-line generated file.
+uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -223,6 +223,13 @@ output/
 *.npy
 *.ckpt
 *.zip
+
+# Pipeline outputs. model/ was documented as ignored but never actually was,
+# leaving 121 MB untracked-but-stageable in front of the 10 MB commit gate.
+model/
+!model/README.md
+smoke/
+sbatch-smoke/
 
 # Local agent context — deliberately untracked (deleted from main in 6a11675)
 CLAUDE.md

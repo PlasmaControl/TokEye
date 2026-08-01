@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import io
 import json
 import re
 import subprocess
@@ -15,7 +13,6 @@ from tokeye.export import (
     SCHEMA_MODESPEC,
     analysis_bundle,
     default_stem,
-    modes_csv_text,
     modespec_bundle,
     save_npz,
     stft_axes,
@@ -282,65 +279,6 @@ class TestModespecBundle:
         assert "n_gated" not in loaded.files
         assert "tok_mask" not in loaded.files
         assert "coh_thresh" not in loaded.files
-
-
-class TestModesCsvText:
-    def _fake_result_with_mode_amp(self):
-        # detect_modes() (vendored, called inside modes_csv_text) requires
-        # result["mode_amp"]: dict {n: (n_win, n_freq)} — not part of the
-        # npz schema, but required for the real function to run at all. See
-        # tests/test_export.py module docstring / T3 report for the
-        # rationale (the brief's fake result omits it).
-        result = _fake_modespec_result()
-        n_lo, n_hi = result["n_range"]
-        n_win, n_freq = result["n_dominant"].shape
-        result["mode_amp"] = {
-            n: np.ones((n_win, n_freq)) for n in range(int(n_lo), int(n_hi) + 1)
-        }
-        return result
-
-    def test_header_matches_csv_columns(self):
-        from tokeye.modespec.classic.generate_modes import CSV_COLUMNS
-
-        result = self._fake_result_with_mode_amp()
-        text = modes_csv_text(result, array="toroidal", f_min=5.0, f_max=50.0)
-
-        header = text.split("\r\n", 1)[0]
-        assert header == ",".join(CSV_COLUMNS)
-
-    def test_rows_populated(self):
-        from tokeye.modespec.classic.generate_modes import CSV_COLUMNS
-
-        result = self._fake_result_with_mode_amp()
-        text = modes_csv_text(result, array="toroidal", f_min=5.0, f_max=50.0)
-
-        reader = csv.DictReader(io.StringIO(text))
-        assert reader.fieldnames == CSV_COLUMNS
-        rows = list(reader)
-        assert len(rows) > 0
-        for row in rows:
-            assert row["array"] == "toroidal"
-            assert row["mode_label"] == "n"
-            assert row["f_min_khz"] == "5.0"
-            assert row["f_max_khz"] == "50.0"
-
-    def test_poloidal_array_uses_m_label(self):
-        # Matches the vendored generate_modes driver:
-        # mode_label = "n" if array == "toroidal" else "m"
-        result = self._fake_result_with_mode_amp()
-        text = modes_csv_text(result, array="poloidal", f_min=5.0, f_max=50.0)
-
-        rows = list(csv.DictReader(io.StringIO(text)))
-        assert len(rows) > 0
-        for row in rows:
-            assert row["array"] == "poloidal"
-            assert row["mode_label"] == "m"
-
-    def test_runs_without_error_on_fake_result(self):
-        result = self._fake_result_with_mode_amp()
-        text = modes_csv_text(result, array="poloidal", f_min=1.0, f_max=2.0)
-        assert isinstance(text, str)
-        assert text  # at least the header
 
 
 class TestDefaultStem:

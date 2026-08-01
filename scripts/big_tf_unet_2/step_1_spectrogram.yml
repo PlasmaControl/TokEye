@@ -1,0 +1,13 @@
+# step_1 — spectrograms, then keep only the most active windows
+#
+#   sbatch step_1_spectrogram.sh        then look at step_1_spectrogram.ipynb
+#
+# Owns the 'window_filter:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+window_filter:
+  enabled: true
+  max_windows_per_shot: 25   # windows kept per shot, most-active first
+  min_activity: 0.0005       # drop windows with less active area than this

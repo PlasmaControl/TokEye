@@ -32,12 +32,4 @@ ignore = [
 "scripts/**" = ["E402", "E702", "E741", "SIM115", "PTH208"]
 
 "src/tokeye/extra/eval/**" = ["E702"]
-"src/tokeye/modespec/classic/**" = [
-    "E", "W", "I", "UP", "C4", "FA", "ISC", "ICN", "RET", "SIM", "TID", "TC",
-    "PTH", "TD", "NPY", "F401", "F841",
-]
-"src/tokeye/eigspec/**" = [
-    "E", "W", "I", "UP", "C4", "FA", "ISC", "ICN", "RET", "SIM", "TID", "TC",
-    "PTH", "TD", "NPY", "F401", "F841", "F811", "F541",
-]
 

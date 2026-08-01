@@ -10,21 +10,14 @@ collects future ideas worth building.
 | Tool | Command | Status |
 |------|---------|--------|
 | Segmentation | `tokeye run`, `tokeye app` | shipped (big_tf_unet) |
-| modespec (classic) | `tokeye modespec <config.yaml>` | shipped — vendored pymodespec (Mirnov n-number fits; needs MDSplus or a cache) |
-| modespec (deep) | `tokeye modespec --engine deep` | reserved — single-chord CO2 n-inference, developed in the sibling `integratedmode` project |
 | elmspec | `tokeye elmspec INPUTS...` | shipped — ELM events from the transient channel |
 | alfvenspec | `tokeye alfvenspec INPUTS...` | shipped, deliberately thin — ae_tf_maskrcnn boxes/masks; awaiting EP-group requirements |
-| eigspec | `tokeye eigspec [SCRIPT]` | shipped — vendored (MIT) with import + SSI numeric fixes (see its PROVENANCE.md; fixes worth upstreaming) |
 | modesearch | `tokeye modesearch` | design stage — prints the plan |
 
 ## Near-term engineering
 
 - **Upload `ae_tf_maskrcnn` weights to `nc1/ae_tf_maskrcnn`** (registry entry
   and upload-script probe are in place; needs a write-scoped HF token).
-- **Upstream the eigspec fixes**: the vendored copy fixes two numeric bugs in
-  `covariance_driven_ssi` (Hankel channel-interleave, spurious transpose) plus
-  import-breaking syntax errors — push these back to PlasmaControl/eigspec and
-  audit the sibling SSI variants (`ssi1ca`, `ssicca`) for the same layout bug.
 - **AE weights provenance**: score calibration and a labeled validation set
   for alfvenspec before promoting it beyond "runs the model".
 
@@ -37,7 +30,6 @@ A single record type that every detector emits, so downstream tools compose:
     detector, detector_version, artifact_ref
 
 - `big_tf_unet` masks → connected regions → records (coherent/transient class)
-- `modespec` CSV rows → records with `n` filled
 - `elmspec` events → transient records tagged ELM
 - `alfvenspec` boxes → records tagged AE
 
@@ -74,9 +66,6 @@ detectors.
 - **AE taxonomy.** Classify alfvenspec detections (TAE/RSAE/EAE/BAE) from
   frequency-vs-time shape and q-profile context — the EP group's actual need;
   gather their requirements before building.
-- **Sawtooth/MRE integration.** The vendored classic tree already carries ECE
-  sawtooth and MRE helpers (`ece_sawteeth.py`, `mre_utils.py`); surface them
-  as first-class detectors emitting catalogue records.
 - **Inter-shot mode.** A between-shots summary (30 s budget): run the suite on
   the last shot, print/annotate the mode inventory for the control room.
 - **Cross-machine record.** TJ-II validation already exists for the U-Net;

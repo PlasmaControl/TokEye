@@ -1,11 +1,9 @@
-"""Shared "save results" backbone: npz bundle schemas + CSV export.
+"""Shared "save results" backbone: npz bundle schemas.
 
 Every TokEye surface that offers a "Save results" feature (Gradio tabs, the
 native Qt GUI, CLI batch) builds its output through this module so every
 saved ``.npz`` follows one consistent schema. **numpy-only** at import time:
-the single vendored import (``tokeye.modespec.classic.generate_modes``)
-happens lazily inside :func:`modes_csv_text`, so importing this module never
-pulls in torch, gradio, Qt, matplotlib, or plotly.
+importing this module never pulls in torch, gradio, Qt, matplotlib, or plotly.
 
 Two schemas:
 
@@ -20,8 +18,6 @@ absent — bundles never store ``None``.
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -189,41 +185,6 @@ def save_npz(path: str | Path, bundle: NpzBundle) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, **bundle)
     return path
-
-
-def modes_csv_text(
-    result: dict, *, array: str = "toroidal", f_min: float, f_max: float
-) -> str:
-    """Render detected mode events as CSV text: byte-compatible with the
-    diiid-batch ``<shot>_modes.csv`` for toroidal arrays (identical output),
-    and matching the vendored ``generate_modes`` driver's n/m ``mode_label``
-    convention for other arrays. ``result`` is the live mode-spectrogram
-    analysis result (must include ``mode_amp``, as ``detect_modes``
-    requires)."""
-    from tokeye.modespec.classic.generate_modes import (
-        CSV_COLUMNS,
-        PARAM_DEFAULTS,
-        detect_modes,
-    )
-
-    cfg = {**PARAM_DEFAULTS, "n_range": list(result["n_range"])}
-    rows = detect_modes(result, cfg)
-    mode_label = "n" if array == "toroidal" else "m"
-
-    buf = io.StringIO(newline="")
-    writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
-    writer.writeheader()
-    for ev in rows:
-        writer.writerow(
-            {
-                "array": array,
-                "mode_label": mode_label,
-                "f_min_khz": f_min,
-                "f_max_khz": f_max,
-                **ev,
-            }
-        )
-    return buf.getvalue()
 
 
 def default_stem(kind: str, *parts: object) -> str:

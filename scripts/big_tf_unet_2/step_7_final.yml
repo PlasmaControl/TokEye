@@ -1,0 +1,11 @@
+# step_7 — train and export the final TorchScript model
+#
+#   sbatch step_7_final.sh        then look at step_7_final.ipynb
+#
+# Owns the 'final:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+final:
+  max_epochs: 100

@@ -1,0 +1,16 @@
+# step_6 — 5-fold out-of-fold predictions — a leakage-free second opinion
+#
+#   sbatch step_6_refine.sh        then look at step_6_refine.ipynb
+#
+# Owns the 'refine:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+# The long one: n_folds trained in sequence. If the job hits its wall clock,
+# just resubmit — finished folds are kept and it picks up where it stopped.
+# Changing a knob below invalidates that partial and restarts from fold 0.
+refine:
+  n_folds: 5
+  max_epochs: 200
+  model_trust: 0.5   # 0 = trust step_4's masks, 1 = trust the CV models

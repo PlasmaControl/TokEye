@@ -1,0 +1,13 @@
+# step_4 — threshold the residual into coherent/transient masks
+#
+#   sbatch step_4_labels.sh        then look at step_4_labels.ipynb
+#
+# Owns the 'labels:' section.
+# Scale, modalities and data paths live in run.yml.
+# Anything not set here uses the package defaults.
+# 'auto' means the pipeline computes it from your data.
+
+labels:
+  knee_sensitivity: 1.0     # bigger = higher threshold = fewer labeled pixels
+  delta: 0.0                # extra threshold offset, in noise-sigma units
+  min_size_fraction: 0.0002 # smallest object kept, as a fraction of the image

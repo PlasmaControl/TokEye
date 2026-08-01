@@ -10,8 +10,8 @@ if TYPE_CHECKING:
 _DESCRIPTION = """\
 modesearch is not implemented yet. The plan:
 
-  1. An offline crawler runs the TokEye suite (big_tf_unet, modespec,
-     elmspec, alfvenspec) over shot archives and indexes every detected
+  1. An offline crawler runs the TokEye suite (big_tf_unet, elmspec,
+     alfvenspec) over shot archives and indexes every detected
      mode: shot, time interval, frequency band, mode numbers, amplitude,
      detector provenance.
   2. Researchers query the index -- e.g. "shots with an n=2 tearing mode

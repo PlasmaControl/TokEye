@@ -1,11 +1,17 @@
 """Typed, validated run configuration.
 
-``load_run_config`` merges the intern's ``run.yaml`` ON TOP of the bundled
-``config/defaults.yaml`` (so run.yaml only carries overrides — the
-replace-not-merge behavior of the legacy ``load_settings`` is retired) and
-validates the result into a pydantic model. Bad knob values die here, before
-any compute, with one-line messages naming the field and the allowed range.
-Unknown keys (typos) are rejected too.
+``load_run_config`` merges a workspace's config files ON TOP of the bundled
+``config/defaults.yaml``, in this order:
+
+    config/defaults.yaml  <-  run.yml  <-  step_N_*.yml
+
+so each file only carries what it overrides (the replace-not-merge behavior of
+the legacy ``load_settings`` is retired). Splitting the *files* per step does not
+split the *config object*: the merge is deep and the result is validated as one
+whole ``RunConfig``, so ``step_3`` still reads ``run.nfft`` and ``modalities``.
+
+Bad knob values die here, before any compute, with one-line messages naming the
+field and the allowed range. Unknown keys (typos) are rejected too.
 """
 
 from __future__ import annotations
@@ -147,18 +153,6 @@ class PathsSection(_Section):
     foundation_dir: str
 
 
-class SlurmSection(_Section):
-    account: str | None
-    cpu_partition: str | None
-    gpu_partition: str | None
-    cpu_cpus: int = Field(gt=0)
-    cpu_mem: str
-    cpu_time: str
-    gpu_cpus: int = Field(gt=0)
-    gpu_mem: str
-    gpu_time: str
-
-
 class SmokeSection(_Section):
     enabled: bool
     n_shots: int = Field(gt=0)
@@ -171,6 +165,7 @@ class SmokeSection(_Section):
 
 class RunConfig(_Section):
     run: RunSection
+    overwrite: bool = True
     modalities: dict[str, ModalityConfig] = Field(min_length=1)
     extraction: ExtractionSection
     window_filter: WindowFilterSection
@@ -182,7 +177,6 @@ class RunConfig(_Section):
     final: FinalSection
     eval: EvalSection
     paths: PathsSection
-    slurm: SlurmSection
     smoke: SmokeSection
 
     @property
@@ -198,35 +192,54 @@ class RunConfig(_Section):
         return self.extraction.subseq_len // self.run.hop + 1
 
 
-def _format_validation_error(err: ValidationError) -> str:
+def _format_validation_error(err: ValidationError, sources: list[Path]) -> str:
     lines = []
     for issue in err.errors():
         loc = ".".join(str(p) for p in issue["loc"])
         lines.append(f"  {loc}: {issue['msg']}")
     n = len(lines)
     plural = "s" if n != 1 else ""
-    return f"{n} problem{plural} in run.yaml:\n" + "\n".join(lines)
+    where = " + ".join(p.name for p in sources)
+    return f"{n} problem{plural} in {where}:\n" + "\n".join(lines)
 
 
-def load_run_config(run_yaml: str | Path) -> RunConfig:
-    """Merge run.yaml over the bundled defaults and validate."""
-    run_yaml = Path(run_yaml)
-    if not run_yaml.exists():
-        raise ConfigError(f"run.yaml not found: {run_yaml}")
-    merged = OmegaConf.merge(OmegaConf.load(DEFAULTS_YAML), OmegaConf.load(run_yaml))
+def config_sources(config_path: str | Path) -> list[Path]:
+    """The files merged for ``config_path``, in increasing precedence.
+
+    ``run.yml`` is always included: a step's own ``.yml`` carries only its knob
+    section, so the shared scale/modalities/paths come from its sibling. Passing
+    ``run.yml`` itself yields just that file (no self-duplication).
+    """
+    config_path = Path(config_path)
+    run_yml = config_path.parent / "run.yml"
+    if config_path.name == "run.yml" or not run_yml.exists():
+        return [config_path]
+    return [run_yml, config_path]
+
+
+def load_run_config(config_path: str | Path) -> RunConfig:
+    """Merge ``run.yml`` then the given step config over the defaults; validate."""
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise ConfigError(f"config not found: {config_path}")
+    sources = config_sources(config_path)
+    merged = OmegaConf.load(DEFAULTS_YAML)
+    for source in sources:
+        merged = OmegaConf.merge(merged, OmegaConf.load(source))
     raw = OmegaConf.to_container(merged, resolve=True)
     try:
         return RunConfig.model_validate(raw)
     except ValidationError as err:
-        raise ConfigError(_format_validation_error(err)) from None
+        raise ConfigError(_format_validation_error(err, sources)) from None
 
 
 def check_scale_lock(cfg: RunConfig, run_meta_path: Path) -> None:
-    """The scale in run.yaml must match the scale this run was created with.
+    """The configured scale must match the scale this run first ran at.
 
-    A different scale is a different run (different run_id, cache root, and
-    workspace) — changing nfft/hop in an existing run.yaml would silently mix
-    artifacts, so it is refused here.
+    A different scale is a different run (different cache root and workspace) —
+    changing nfft/hop partway through would silently mix artifacts, so it is
+    refused here. The lock file is written by the runner on the first step, and
+    this check no-ops until then.
     """
     if not run_meta_path.exists():
         return
@@ -235,7 +248,7 @@ def check_scale_lock(cfg: RunConfig, run_meta_path: Path) -> None:
     current = (cfg.run.nfft, cfg.run.hop)
     if locked != current:
         raise ConfigError(
-            f"run.yaml scale nfft={current[0]}/hop={current[1]} does not match "
+            f"run.yml scale nfft={current[0]}/hop={current[1]} does not match "
             f"this run's locked scale nfft={locked[0]}/hop={locked[1]}. "
-            f"To train a different scale, scaffold a new run instead."
+            f"To train a different scale, copy the template to a new folder."
         )

@@ -102,6 +102,7 @@ def main(settings: dict) -> dict | None:
     rows: list[dict[str, int]] = []
     index = 0
     n_shots_used = 0
+    n_all_zero = 0
     try:
         for shot in shots:
             path = foundation_dir / f"{shot}_processed.h5"
@@ -144,6 +145,7 @@ def main(settings: dict) -> dict | None:
 
             if not np.any(sig):
                 logger.warning(f"{modality}: shot {shot} is all-zero; skip")
+                n_all_zero += 1
                 continue
 
             src_khz = _native_rate_khz(x_probe)
@@ -167,6 +169,21 @@ def main(settings: dict) -> dict | None:
     pd.DataFrame(rows, columns=["index", "shotn", "window_start"]).to_csv(
         frame_info_csv, index=False
     )
+
+    if index == 0:
+        # Every skip above only warns, so without this a dead modality yields an
+        # empty h5 and fails confusingly several steps later. co2 is the known
+        # case: its preserved top-up data was all-zero for every shot and chord.
+        reason = (
+            f"all {n_all_zero} available shots were all-zero"
+            if n_all_zero
+            else "no shot produced a usable window"
+        )
+        raise RuntimeError(
+            f"{modality}: {reason} — 0 windows extracted from {len(shots)} shots. "
+            f"Check that {input_key!r} holds real signal, or drop {modality} from "
+            f"run.yml's modalities (and narrow the --array range in the .sh files)."
+        )
 
     smoke_tag = " (smoke)" if smoke else ""
     logger.info(
